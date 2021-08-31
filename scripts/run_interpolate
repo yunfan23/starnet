@@ -1,0 +1,7 @@
+#!/bin/bash
+# python -m pdb -c continue \
+python \
+interpolate.py \
+configs/recon/airplane/airplane_recon_style_interploate.yaml \
+--pretrained \
+./trained/stylegen/airplane_ae_trained_25may21.pt

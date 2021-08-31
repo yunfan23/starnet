@@ -1,0 +1,9 @@
+#!/bin/bash
+# python \
+# -m pdb -c continue \
+CUDA_VISIBLE_DEVICES=0, python \
+gen.py \
+configs/gen/airplane_gen.yaml \
+--num_obj 20 \
+--pretrained \
+./pretrained/gen/airplane_gen.pt

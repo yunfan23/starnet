@@ -1,0 +1,71 @@
+data:
+  type: datasets.pointflow_datasets_v2
+  dataset_type: shapenet15k
+  num_workers: 16
+  cates: ['all']
+  tr_max_sample_points: 2048
+  te_max_sample_points: 2048
+  data_dir: data/ShapeNetCore.v2.PC15k
+  batch_size: 128
+  dataset_scale: 1
+  normalize_per_shape: False
+  normalize_std_per_axis: False
+  recenter_per_shape: True
+  fps: True
+
+viz:
+  log_freq: 10
+  viz_freq: 50
+  save_freq: 450
+  val_freq: 450
+
+trainer:
+  type: trainers.ae_sparenet_trainer_3D
+  epochs: 451
+  val_metrics_batch_size: 400
+  seed: 100
+  opt_dec:
+    type: 'adam'
+    lr: 1e-3
+    beta1: 0.99
+    beta2: 0.999
+    weight_decay: 0.
+    scheduler: step
+    step_epoch: 400
+  opt_enc:
+    type: 'adam'
+    lr: 1e-3
+    beta1: 0.99
+    beta2: 0.999
+    weight_decay: 0.
+    scheduler: step
+    step_epoch: 400
+
+models:
+  decoder:  # [dim] - [hid_dims] - [dim]
+    type: models.decoders.sparenet_decoder
+    num_pts: 2048
+    num_k: 20
+    w_dim: 128
+    z_dim: 128
+    use_noise: True
+    use_1d: False
+    fuseconv: False
+    dim: 3
+    out_dim: 3
+    hidden_size: 256
+    n_blocks: 24
+    sigma_condition: True
+    param_likelihood: False
+    xyz_condition: True
+  encoder:
+    type: models.encoders.l3dp_encoder_v2
+    use_deterministic_encoder: True
+    zdim: 128
+    input_dim: 3
+
+inference:
+  step_size_ratio: 1
+  num_steps: 10
+  num_points: 2048
+  weight: 1

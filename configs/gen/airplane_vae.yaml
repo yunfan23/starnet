@@ -1,0 +1,99 @@
+data:
+  type: datasets.pointflow_datasets_v2
+  dataset_type: shapenet15k
+  num_workers: 16
+  cates: ['airplane']
+  tr_max_sample_points: 2048
+  te_max_sample_points: 2048
+  data_dir: data/ShapeNetCore.v2.PC15k
+  batch_size: 512
+  dataset_scale: 1
+  normalize_per_shape: False
+  normalize_std_per_axis: False
+  recenter_per_shape: True
+  fps: True
+
+viz:
+  save_freq: 100
+  log_freq: 1
+  viz_freq: 50
+  val_freq: -1
+
+trainer:
+  # type: trainers.lgan_trainer_3D_v2
+  type: trainers.lvae_trainer_3D
+  epochs: 501
+  seed: 100
+  eval_split: all
+  val_metrics_batch_size: 100
+  max_gen_validate_shapes: 100
+
+  # For autoencoding
+  validate_recon: True
+  opt_ldec:
+    type: 'adam'
+    lr: 1e-3
+    beta1: 0.99
+    beta2: 0.999
+    weight_decay: 0.
+    scheduler: step
+    step_epoch: 100
+  opt_lenc:
+    type: 'adam'
+    lr: 1e-3
+    beta1: 0.99
+    beta2: 0.999
+    weight_decay: 0.
+    scheduler: step
+    step_epoch: 100
+
+  # For GAN
+  ae_pretrained: 'logs/airplane_gen_v2_2021-Aug-26-10-58-06/checkpoints/epoch_6400_iters_0.pt'
+  opt_gen:
+    type: 'adam'
+    lr: 1e-4
+    beta1: 0.5
+    beta2: 0.99
+    step: False
+    weight_decay: 0.
+  opt_dis:
+    type: 'adam'
+    lr: 1e-4
+    beta1: 0.5
+    beta2: 0.99
+    step: False
+    weight_decay: 0.
+
+models:
+  ldec:
+    type: models.decoders.latent_decoder
+    w_dim: 128
+    z_dim: 128
+
+  lenc:
+    type: models.encoders.latent_encoder
+    z_dim: 128
+    w_dim: 128
+      
+  encoder:
+    type: models.encoders.l3dp_encoder_v2
+    use_deterministic_encoder: True
+    zdim: 128
+    input_dim: 3
+      
+  decoder:
+    type: models.decoders.sparenet_decoder
+    dim: 3
+    out_dim: 3
+    hidden_size: 256
+    n_blocks: 24
+    sigma_condition: True
+    param_likelihood: False
+    xyz_condition: True
+    z_dim: 128
+
+inference:
+  step_size_ratio: 1
+  num_steps: 10
+  num_points: 2048
+  weight: 1

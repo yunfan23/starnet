@@ -1,0 +1,5 @@
+#!/usr/bin/bash
+python \
+test.py \
+"./logs/airplane_220721_2021-Jul-23-15-45-52/config/airplane_250721.yaml" \
+--pretrained "./logs/airplane_220721_2021-Jul-23-15-45-52/checkpoints/epoch_3900_iters_0.pt"
