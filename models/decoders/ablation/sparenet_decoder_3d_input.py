@@ -17,6 +17,7 @@ class Decoder(nn.Module):
         self.decoder = AdaInPointGenCon(input_dim=3, style_dim=self.style_dim)
 
     def forward(self, style):
+        # import pdb; pdb.set_trace()
         content = constant_input(style.size(0), self.num_points)
         outs = self.decoder(content, style)
         outs = outs.transpose(1, 2).contiguous()
@@ -77,14 +78,14 @@ def constant_input(bs, num_points):
 
 def vertics_gen(num_points):
     num_points = num_points
-    grain_x = 2 ** np.floor(np.log2(num_points) / 2) - 1
-    grain_y = 2 ** np.ceil(np.log2(num_points) / 2) - 1
-    grain_z = 2 ** np.ceil(np.log2(num_points) / 2) - 1
+    grain_x = 2 ** np.floor(np.log2(num_points) / 3) - 1
+    grain_y = 2 ** np.ceil(np.log2(num_points) / 3) - 1
+    grain_z = 2 ** np.ceil(np.log2(num_points) / 3) - 1
     vertices = []
     for i in range(int(grain_x + 1)):
         for j in range(int(grain_y + 1)):
-           for k in range(int(grain_z + 1)):
-            vertices.append([i / grain_x, j / grain_y, k / grain_z])
+            for k in range(int(grain_z + 1)):
+                vertices.append([i / grain_x, j / grain_y, k / grain_z])
 
     return vertices
 

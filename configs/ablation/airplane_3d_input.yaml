@@ -3,7 +3,7 @@ data:
   num_workers: 16
   cates: ['airplane']
   data_dir: data/shapenet.hdf5
-  batch_size: 12
+  batch_size: 128
 
 viz:
   log_freq: 10

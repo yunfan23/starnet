@@ -35,6 +35,7 @@ class Decoder(nn.Module):
 
     def forward(self, x):
         import pdb; pdb.set_trace()
+        x = x.unsqueeze(1).repeat(2048)
         x = F.relu(self.se1(self.bn1(self.adain1(self.conv1(x)))))
         x = F.relu(self.se2(self.bn2(self.adain2(self.conv2(x)))))
         x = F.relu(self.se3(self.bn3(self.adain3(self.conv3(x)))))
