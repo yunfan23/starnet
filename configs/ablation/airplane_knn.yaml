@@ -1,49 +1,42 @@
 data:
-  type: datasets.pointflow_datasets_v2
-  dataset_type: shapenet15k
+  type: datasets.dataset
   num_workers: 16
   cates: ['airplane']
-  tr_max_sample_points: 2048
-  te_max_sample_points: 2048
-  data_dir: data/ShapeNetCore.v2.PC15k
-  batch_size: 128
-  dataset_scale: 1
-  normalize_per_shape: False
-  normalize_std_per_axis: False
-  recenter_per_shape: True
-  fps: True
+  data_dir: data/shapenet.hdf5
+  batch_size: 16
 
 viz:
   log_freq: 10
   viz_freq: 50
-  save_freq: 100
+  save_freq: 50
   val_freq: 50
 
 trainer:
   type: trainers.ae_sparenet_trainer_3D
-  epochs: 601
+  epochs: 551
   val_metrics_batch_size: 400
+  cd_weight: 10.
   seed: 100
   opt_dec:
     type: 'adam'
     lr: 1e-3
-    beta1: 0.99
-    beta2: 0.999
+    beta1: 0.9
+    beta2: 0.99
     weight_decay: 0.
     scheduler: step
     step_epoch: 400
   opt_enc:
     type: 'adam'
     lr: 1e-3
-    beta1: 0.99
-    beta2: 0.999
+    beta1: 0.9
+    beta2: 0.99
     weight_decay: 0.
     scheduler: step
     step_epoch: 400
 
 models:
   decoder:  # [dim] - [hid_dims] - [dim]
-    type: models.decoders.ablation.sparenet_decoder_nose
+    type: models.decoders.ablation.sparenet_decoder_knn
     num_pts: 2048
     num_k: 20
     w_dim: 128

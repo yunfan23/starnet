@@ -132,7 +132,7 @@ def main_worker(cfg, args):
         trainer.epoch_end(epoch, writer=writer)
         if epoch % int(cfg.viz.log_freq) == 0 and int(cfg.viz.log_freq) > 0:
             if 'loss' in logs_info.keys():
-                loss = logs_info['loss'] 
+                loss = logs_info['loss']
                 print(f"[INFO] Epoch {epoch:-4} Time {duration:.1f}s: Loss {loss:.4f}")
             else:
                 print(f"[INFO] Epoch {epoch:-4} Time {duration:.1f}s")

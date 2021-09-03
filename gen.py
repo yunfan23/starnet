@@ -65,15 +65,6 @@ def get_args():
         config = yaml.safe_load(f)
     config = dict2namespace(config)
 
-    #  Create log_name
-    cfg_file_name = os.path.splitext(os.path.basename(args.config))[0]
-    run_time = time.strftime('%Y-%b-%d-%H-%M-%S')
-    # Currently save dir and log_dir are the same
-    config.log_name = "logs/%s_%s" % (cfg_file_name, run_time)
-    config.save_dir = "logs/%s_%s" % (cfg_file_name, run_time)
-    config.log_dir = "logs/%s_%s" % (cfg_file_name, run_time)
-    os.makedirs(config.log_dir + '/config')
-    copy2(args.config, config.log_dir + '/config')
     return args, config
 
 
@@ -96,7 +87,7 @@ def main_worker(cfg, args):
 
     # main training loop
     print("start gen ...")
-    trainer.generate(test_loader)
+    trainer.generate_v2(train_loader, vis=True)
     print("finish gen ...")
 
 

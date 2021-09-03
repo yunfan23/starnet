@@ -1,2 +1,2 @@
-CUDA_VISIBLE_DEVICES=0 \
-python test.py configs/gen/airplane_gen_add.yaml --pretrained trained/airplane_ae_trained_29apr21.pt
+CUDA_VISIBLE_DEVICES=1 \
+python test.py ./logs/chair_v3_2021-Sep-02-12-33-05/config/chair_v3.yaml --pretrained ./logs/chair_v3_2021-Sep-02-12-33-05/checkpoints/epoch_450_iters_0.pt

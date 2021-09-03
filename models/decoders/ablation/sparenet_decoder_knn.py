@@ -2,6 +2,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from trainers.utils.utils import get_edge_features
 
 
 class Decoder(nn.Module):
@@ -191,13 +192,30 @@ class GridDecoder(nn.Module):
         self.bn2 = torch.nn.BatchNorm1d(self.hidden_size // 2)
         self.bn3 = torch.nn.BatchNorm1d(self.hidden_size // 4)
 
-        self.se1 = SELayer1D(channel=self.hidden_size)
-        self.se2 = SELayer1D(channel=self.hidden_size // 2)
-        self.se3 = SELayer1D(channel=self.hidden_size // 4)
+        self.ec1 =  EdgeConv(self.hidden_size)
+        self.ec2 = EdgeConv(self.hidden_size // 2)
+        self.ec3 = EdgeConv(self.hidden_size // 4)
 
     def forward(self, x):
-        x = F.relu(self.se1(self.bn1(self.adain1(self.conv1(x)))))
-        x = F.relu(self.se2(self.bn2(self.adain2(self.conv2(x)))))
-        x = F.relu(self.se3(self.bn3(self.adain3(self.conv3(x)))))
+        x = F.relu(self.ec1(self.bn1(self.adain1(self.conv1(x)))))
+        x = F.relu(self.ec2(self.bn2(self.adain2(self.conv2(x)))))
+        x = F.relu(self.ec3(self.bn3(self.adain3(self.conv3(x)))))
         x = self.th(self.conv4(x))
+        return x
+
+
+class EdgeConv(nn.Module):
+    def __init__(self, in_channels, num_k=20):
+        super(EdgeConv, self).__init__()
+        self.num_k = num_k
+
+        self.conv = nn.Conv2d(2 * in_channels, in_channels, [1, num_k], 1)
+        self.bn = nn.BatchNorm2d(in_channels)
+        self.lrelu = nn.LeakyReLU(0.2)
+
+    def forward(self, x, pc=None):
+        x = get_edge_features(x, self.num_k, pc)
+        x = self.lrelu(self.bn(self.conv(x)))
+        x = self.lrelu(self.conv(x))
+        x = x.squeeze(3)
         return x

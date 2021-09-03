@@ -5,7 +5,6 @@ from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser
 import numpy as np
 import torch
 from scipy.linalg import sqrtm
-from scipy.misc import imread
 from torch.nn.functional import adaptive_avg_pool2d
 
 from Frechet.pointnet import PointNetCls
@@ -58,7 +57,7 @@ def get_activations(pointclouds, model, batch_size=100, dims=1808,
         start = i * batch_size
         end = start + batch_size
         pointcloud_batch = pointclouds[start:end]
-        
+
         if device is not None:
             pointcloud_batch = pointcloud_batch.to(device)
 
@@ -185,7 +184,7 @@ def calculate_fpd(pointclouds1, pointclouds2=None, statistic_save_path=None, bat
     model.load_state_dict(torch.load(PointNet_pretrained_path))
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model.to(device)
-   
+
     m1, s1 = calculate_activation_statistics(pointclouds1, model, batch_size, dims, device)
     if pointclouds2 is not None:
         m2, s2 = calculate_activation_statistics(pointclouds2, model, batch_size, dims, device)
@@ -193,8 +192,8 @@ def calculate_fpd(pointclouds1, pointclouds2=None, statistic_save_path=None, bat
         f = np.load(statistic_save_path)
         m2, s2 = f['m'][:], f['s'][:]
         f.close()
-   
+
     fid_value = calculate_frechet_distance(m1, s1, m2, s2)
 
     return fid_value
-    
+

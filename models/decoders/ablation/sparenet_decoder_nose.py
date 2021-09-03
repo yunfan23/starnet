@@ -42,9 +42,8 @@ class AdaInPointGenCon(nn.Module):
 
         # MLP to generate AdaIN parameters
         self.mlp = nn.Sequential(
-            nn.Linear(self.style_dim, self.style_dim),
-            nn.ReLU(),
             nn.Linear(self.style_dim, get_num_adain_params(self.dec)),
+            nn.ReLU(),
         )
 
     def forward(self, content, style):
@@ -204,9 +203,6 @@ class GridDecoder(nn.Module):
         self.bn2 = torch.nn.BatchNorm1d(self.hidden_size // 2)
         self.bn3 = torch.nn.BatchNorm1d(self.hidden_size // 4)
 
-        self.se1 = SELayer1D(channel=self.hidden_size)
-        self.se2 = SELayer1D(channel=self.hidden_size // 2)
-        self.se3 = SELayer1D(channel=self.hidden_size // 4)
 
     def forward(self, x):
         x = F.relu(self.bn1(self.adain1(self.conv1(x))))

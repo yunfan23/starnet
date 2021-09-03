@@ -1,0 +1,3 @@
+#!/usr/bash
+# python interpolate.py ./logs/chair_v3_2021-Sep-02-12-33-05/config/chair_v3.yaml --pretrained ./logs/chair_v3_2021-Sep-02-12-33-05/checkpoints/epoch_450_iters_0.pt
+CUDA_VISIBLE_DEVICES=1 python interpolate.py ./configs/recon/car_v3.yaml --pretrained ./logs/car_v3_2021-Sep-02-23-22-12/checkpoints/epoch_550_iters_0.pt

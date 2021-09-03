@@ -14,7 +14,7 @@ class Decoder(nn.Module):
         super(Decoder, self).__init__()
         self.num_points = num_points
         self.style_dim = style_dim
-        self.decoder = AdaInPointGenCon(input_dim=2, style_dim=self.style_dim)
+        self.decoder = AdaInPointGenCon(input_dim=3, style_dim=self.style_dim)
 
     def forward(self, style):
         content = constant_input(style.size(0), self.num_points)
@@ -44,7 +44,8 @@ class AdaInPointGenCon(nn.Module):
         )
 
     def forward(self, content, style):
-        adain_params = self.mlp(style)
+        num_styles = get_num_adain_params(self.dec)
+        adain_params = style.repeat(-1, num_styles)
         assign_adain_params(adain_params, self.dec)
         return self.dec(content)
 
@@ -78,10 +79,12 @@ def vertics_gen(num_points):
     num_points = num_points
     grain_x = 2 ** np.floor(np.log2(num_points) / 2) - 1
     grain_y = 2 ** np.ceil(np.log2(num_points) / 2) - 1
+    grain_z = 2 ** np.ceil(np.log2(num_points) / 2) - 1
     vertices = []
     for i in range(int(grain_x + 1)):
         for j in range(int(grain_y + 1)):
-            vertices.append([i / grain_x, j / grain_y])
+           for k in range(int(grain_z + 1)):
+            vertices.append([i / grain_x, j / grain_y, k / grain_z])
 
     return vertices
 

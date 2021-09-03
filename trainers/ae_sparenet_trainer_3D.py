@@ -54,11 +54,6 @@ class Trainer(BaseTrainer):
         self.opt_dec, self.scheduler_dec = get_opt(
             self.decoder.parameters(), self.cfg.trainer.opt_dec)
 
-        # Prepare save directory
-        os.makedirs(os.path.join(cfg.save_dir, "images"), exist_ok=True)
-        os.makedirs(os.path.join(cfg.save_dir, "checkpoints"), exist_ok=True)
-        os.makedirs(os.path.join(cfg.save_dir, "val"), exist_ok=True)
-
         # Prepare variable for summy
         self.oracle_res = None
 
@@ -75,7 +70,7 @@ class Trainer(BaseTrainer):
             self.scheduler_enc.step(epoch=epoch)
             if writer is not None:
                 writer.add_scalar('train/opt_enc_lr', self.scheduler_enc.get_lr()[0], epoch)
-                
+
     def loss_fn(self, recon, gt, weight=1.):
         loss_cd = self.loss_cd(recon, gt).mean()
         dl, dr = nn_distance(recon, gt)
@@ -253,6 +248,40 @@ class Trainer(BaseTrainer):
                     np.save(f, samples.cpu().numpy())
                 visualize_point_clouds_img(samples.cpu().numpy(), inps.cpu().numpy(), bs=idx, cate=cate)
 
+
+    def generate_v2(self, dataloader, num_sample=20, vis=False):
+        print(self.cfg.data.cates[0])
+        self.encoder.eval()
+        self.decoder.eval()
+        cate = self.cfg.data.cates[0]
+        os.makedirs(f"./results/{cate}", exist_ok=True)
+        data = next(iter(dataloader))
+        with torch.no_grad():
+            inps = data["tr_points"][:num_sample].cuda()
+            sub_smp = np.random.choice(inps.shape[1], 256)
+            sub_inps = inps[:, sub_smp,:]
+            z, _ = self.encoder(sub_inps)
+            samples = self.decoder(z)
+            input_filename = f"./results/{cate}/inps_sub_{cate}.npy"
+            output_filename = f"./results/{cate}/outs_sub_{cate}.npy"
+            with open(input_filename, 'wb') as f:
+                np.save(f, sub_inps.cpu().numpy())
+            with open(output_filename, 'wb') as f:
+                np.save(f, samples.cpu().numpy())
+            if vis:
+                visualize_point_clouds_img(samples.cpu().numpy(), sub_inps.cpu().numpy(), bs=0, cate=f"sub_{cate}")
+
+            z, _ = self.encoder(inps)
+            samples = self.decoder(z)
+            input_filename = f"./results/{cate}/inps_{cate}.npy"
+            output_filename = f"./results/{cate}/outs_{cate}.npy"
+            with open(input_filename, 'wb') as f:
+                np.save(f, inps.cpu().numpy())
+            with open(output_filename, 'wb') as f:
+                np.save(f, samples.cpu().numpy())
+            if vis:
+                visualize_point_clouds_img(samples.cpu().numpy(), inps.cpu().numpy(), bs=0, cate=cate)
+
     def reconstruct(self, inps, num_points=2048):
         with torch.no_grad():
             self.encoder.eval()
@@ -260,3 +289,37 @@ class Trainer(BaseTrainer):
             z, _ = self.encoder(inps)
             samples = self.decoder(z)
             return samples
+
+    def interploate(self, dataloader):
+        print(self.cfg.data.cates[0])
+        self.encoder.eval()
+        self.decoder.eval()
+        cate = self.cfg.data.cates[0]
+        data = next(iter(dataloader))
+        np.random.seed(901)
+        # (src_idx, tgt_idx) = np.random.choice(data["tr_points"].size(0), 2)
+        # (src_idx, tgt_idx) = (5, 21)
+        (src_idx, tgt_idx) = (1, 7)
+        print(f"source {src_idx}, target {tgt_idx}")
+
+        with torch.no_grad():
+            src_inp = data["tr_points"][src_idx]
+            tgt_inp = data["tr_points"][tgt_idx]
+            inps = torch.cat((src_inp.unsqueeze(0), tgt_inp.unsqueeze(0)), dim=0)
+            print(inps.size())
+            z, _ = self.encoder(inps.cuda())
+            print(z.shape)
+            z_lerps = []
+            # import pdb; pdb.set_trace()
+            for w in np.linspace(-0.5, 1.5, 21):
+                z_lerps.append(z[0].lerp(z[1], w).unsqueeze(0))
+            z_lerps = torch.cat(z_lerps, dim=0)
+            print(z_lerps.shape)
+            samples = self.decoder(z_lerps)
+            # import pdb; pdb.set_trace()
+            os.makedirs("results", exist_ok=True)
+            output_filename = f"./results/{cate}_lerp.npy"
+            data = np.concatenate((samples.cpu().numpy(), inps.cpu().numpy()), axis=0)
+            with open(output_filename, 'wb') as f:
+                np.save(f, data)
+            visualize_point_clouds_img(data, data, bs=0, cate=cate)
