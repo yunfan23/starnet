@@ -1,4 +1,0 @@
-#!/bin/bash
-CUDA_VISIBLE_DEVICES=1 python gen.py pretrained/recon/archive/chair_sparenet_v2_2021-Aug-30-22-55-18/config/chair_sparenet_v2.yaml --pretrained pretrained/recon/archive/chair_sparenet_v2_2021-Aug-30-22-55-18/checkpoints/epoch_450_iters_0.pt
-CUDA_VISIBLE_DEVICES=1 python gen.py pretrained/recon/archive/airplane_sparenet_v2_2021-Aug-30-18-18-30/config/airplane_sparenet_v2.yaml --pretrained pretrained/recon/archive/airplane_sparenet_v2_2021-Aug-30-18-18-30/checkpoints/epoch_450_iters_0.pt
-CUDA_VISIBLE_DEVICES=1 python gen.py pretrained/recon/archive/car_sparenet_v2_2021-Aug-30-22-56-04/config/car_sparenet_v2.yaml --pretrained pretrained/recon/archive/car_sparenet_v2_2021-Aug-30-22-56-04/checkpoints/epoch_450_iters_0.pt

@@ -1,3 +1,4 @@
+import glob
 import importlib
 import os
 
@@ -11,10 +12,36 @@ from evaluation.evaluation_metrics import EMD_CD
 from evaluation.StructuralLosses.nn_distance import nn_distance  # noqa
 
 from trainers.base_trainer import BaseTrainer
-from trainers.utils.utils import (count_parameters, get_opt, get_prior,
-                                  set_random_seed, visualize_point_clouds_3d)
+from trainers.utils.utils import (count_parameters, get_opt,
+                                  normalize_point_clouds, set_random_seed,
+                                  visualize_point_clouds_3d)
 from trainers.utils.vis_utils import (visualize_point_clouds_3d,
                                       visualize_point_clouds_img)
+
+synsetid_to_cate = {
+    '02691156': 'airplane', '02773838': 'bag', '02801938': 'basket',
+    '02808440': 'bathtub', '02818832': 'bed', '02828884': 'bench',
+    '02876657': 'bottle', '02880940': 'bowl', '02924116': 'bus',
+    '02933112': 'cabinet', '02747177': 'can', '02942699': 'camera',
+    '02954340': 'cap', '02958343': 'car', '03001627': 'chair',
+    '03046257': 'clock', '03207941': 'dishwasher', '03211117': 'monitor',
+    '04379243': 'table', '04401088': 'telephone', '02946921': 'tin_can',
+    '04460130': 'tower', '04468005': 'train', '03085013': 'keyboard',
+    '03261776': 'earphone', '03325088': 'faucet', '03337140': 'file',
+    '03467517': 'guitar', '03513137': 'helmet', '03593526': 'jar',
+    '03624134': 'knife', '03636649': 'lamp', '03642806': 'laptop',
+    '03691459': 'speaker', '03710193': 'mailbox', '03759954': 'microphone',
+    '03761084': 'microwave', '03790512': 'motorcycle', '03797390': 'mug',
+    '03928116': 'piano', '03938244': 'pillow', '03948459': 'pistol',
+    '03991062': 'pot', '04004475': 'printer', '04074963': 'remote_control',
+    '04090263': 'rifle', '04099429': 'rocket', '04225987': 'skateboard',
+    '04256520': 'sofa', '04330267': 'stove', '04530566': 'vessel',
+    '04554684': 'washer', '02992529': 'cellphone',
+    '02843684': 'birdhouse', '02871439': 'bookshelf',
+    # '02858304': 'boat', no boat in our dataset, merged into vessels
+    # '02834778': 'bicycle', not in our taxonomy
+}
+cate_to_synsetid = {v: k for k, v in synsetid_to_cate.items()}
 
 
 class Trainer(BaseTrainer):
@@ -258,6 +285,58 @@ class Trainer(BaseTrainer):
         data = next(iter(dataloader))
         with torch.no_grad():
             inps = data["tr_points"][:num_sample].cuda()
+            sub_smp = np.random.choice(inps.shape[1], 256)
+            sub_inps = inps[:, sub_smp,:]
+            z, _ = self.encoder(sub_inps)
+            samples = self.decoder(z)
+            input_filename = f"./results/{cate}/inps_sub_{cate}.npy"
+            output_filename = f"./results/{cate}/outs_sub_{cate}.npy"
+            with open(input_filename, 'wb') as f:
+                np.save(f, sub_inps.cpu().numpy())
+            with open(output_filename, 'wb') as f:
+                np.save(f, samples.cpu().numpy())
+            if vis:
+                visualize_point_clouds_img(samples.cpu().numpy(), sub_inps.cpu().numpy(), bs=0, cate=f"sub_{cate}")
+
+            z, _ = self.encoder(inps)
+            samples = self.decoder(z)
+            input_filename = f"./results/{cate}/inps_{cate}.npy"
+            output_filename = f"./results/{cate}/outs_{cate}.npy"
+            with open(input_filename, 'wb') as f:
+                np.save(f, inps.cpu().numpy())
+            with open(output_filename, 'wb') as f:
+                np.save(f, samples.cpu().numpy())
+            if vis:
+                visualize_point_clouds_img(samples.cpu().numpy(), inps.cpu().numpy(), bs=0, cate=cate)
+
+    def generate_v3(self, cate, vis=True):
+        print(cate)
+        id = cate_to_synsetid[cate]
+        self.encoder.eval()
+        self.decoder.eval()
+        os.makedirs(f"./results/{cate}", exist_ok=True)
+        root = "./data/dataset/ShapeNetCore.v2.PC2k/"
+        sub_dir = os.path.join(root, id, "all")
+        files_list = glob.glob(sub_dir + "/*.npy")
+        # files = [
+        #     "c3408a7be501f09070d98a97e17b4da3",
+        #     "c48af98d47f76002deed0e4a55ad5dd6"
+        # ]
+        files = ["", "", "", "", "", "", "", "", "", ""]
+        data = []
+        for file in files:
+            filepath = os.path.join(sub_dir, file + ".npy")
+            if filepath not in files_list:
+                idx = np.random.choice(len(files_list), 1)[0]
+                file = files_list[idx]
+                filepath = file
+            data.append(np.load(filepath)[np.newaxis, ...])
+        data = np.concatenate(data, axis=0)
+        data = torch.from_numpy(data)
+        print(data.shape)
+        data = normalize_point_clouds(data)
+        with torch.no_grad():
+            inps = data.cuda()
             sub_smp = np.random.choice(inps.shape[1], 256)
             sub_inps = inps[:, sub_smp,:]
             z, _ = self.encoder(sub_inps)

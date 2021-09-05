@@ -78,7 +78,7 @@ def main_worker(cfg, args):
         trainer.multi_gpu_wrapper(wrapper)
     trainer.resume(args.pretrained)
     print(cfg.save_dir)
-    val_info = trainer.validate(test_loader, epoch=-1)
+    val_info = trainer.validate(test_loader, epoch=-1, evaluation=True)
     # val_info = trainer.validate_fpd(test_loader, epoch=-1)
     # val_info = trainer.validate_fpd(train_loader, epoch=-1)
     pprint(val_info)

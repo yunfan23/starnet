@@ -61,6 +61,7 @@ class Generator(nn.Module):
             z = self.get_prior(bs).cuda()
 
         y = normalize_2nd_moment(z.to(torch.float32))
+        # y = z.to(torch.float32)
         for layer, bn in zip(self.layers, self.bns):
             y = layer(y)
             if self.use_bn:

@@ -45,7 +45,8 @@ class AdaInPointGenCon(nn.Module):
 
     def forward(self, content, style):
         num_styles = get_num_adain_params(self.dec)
-        adain_params = style.repeat(-1, num_styles)
+        import pdb; pdb.set_trace()
+        adain_params = style.repeat(1, num_styles)
         assign_adain_params(adain_params, self.dec)
         return self.dec(content)
 

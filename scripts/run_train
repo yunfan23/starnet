@@ -1,6 +1,4 @@
 #!/bin/bash
-python \
-train.py \
-"./archive/airplane_220721_2021-Jul-23-15-45-52/config/airplane_250721.yaml" \
---resume \
---pretrained "./archive/airplane_220721_2021-Jul-23-15-45-52/checkpoints/epoch_3900_iters_0.pt"
+# CUDA_VISIBLE_DEVICES=1 python train.py ./configs/recon/airplane_v3.yaml
+# CUDA_VISIBLE_DEVICES=1 python train.py ./configs/gen/airplane_gen_v2.yaml
+CUDA_VISIBLE_DEVICES=0 python train.py ./configs/gen/chair_gen_v2.yaml

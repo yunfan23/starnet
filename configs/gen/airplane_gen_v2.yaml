@@ -6,7 +6,7 @@ data:
   tr_max_sample_points: 2048
   te_max_sample_points: 2048
   data_dir: data/ShapeNetCore.v2.PC15k
-  batch_size: 256
+  batch_size: 512
   dataset_scale: 1
   normalize_per_shape: False
   normalize_std_per_axis: False
@@ -15,14 +15,14 @@ data:
 
 viz:
   save_freq: 100
-  log_freq: 10
+  log_freq: 1000
   viz_freq: 400
   val_freq: -1
 
 trainer:
   # type: trainers.lgan_trainer_3D_v2
   type: trainers.lgan_trainer_3D
-  epochs: 10000
+  epochs: 20001
   seed: 100
   val_metrics_batch_size: 400
   max_gen_validate_shapes: 607
@@ -43,7 +43,7 @@ trainer:
     weight_decay: 0.
 
   # For GAN
-  ae_pretrained: '/home/yunfan/workarea/stylegan_pcgen.v1/logs/airplane_v3_2021-Sep-02-22-58-48/checkpoints/epoch_450_iters_0.pt'
+  ae_pretrained: '/home/yunfan/workarea/stylegan_pcgen.v1/logs/airplane_v3_2021-Sep-03-13-08-15/checkpoints/epoch_450_iters_0.pt'
   gan_only: True
   gan_loss_type: "wgan"
   # Gradient penalty
@@ -84,13 +84,16 @@ models:
     inp_dim: 128
     out_dim: 128
     dims:
-      - 256
-      - 256
+      # - 256
+      # - 256
+      - 128
+      - 128
+      - 128
     prior: gaussian
     gaussian_scale: 1.
     use_bn: False
-    # use_bn: True
-    output_bn: False
+    use_bn: True
+    # output_bn: False
   dis:
     type: models.discriminators.mlp_dis
     inp_dim: 128

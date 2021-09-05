@@ -88,7 +88,7 @@ class Trainer(BaseTrainer):
         batch_size = tr_pts.size(0)
         with torch.no_grad():
             x_real, _ = self.encoder(tr_pts)
-            
+
         x_real.requires_grad = True
         x_fake = self.gen(bs=batch_size)
 
@@ -205,7 +205,7 @@ class Trainer(BaseTrainer):
             z = self.gen(bs=num_shapes)
             pcs = self.decoder(z)
             return pcs
-        
+
     def generate(self, num_shapes=10, num_points=2048):
         with torch.no_grad():
             cate = self.cfg.data.cates[0]
@@ -219,10 +219,10 @@ class Trainer(BaseTrainer):
             with open(output_file, "wb") as f:
                 np.save(f, imgs.cpu().numpy())
 
-    def validate(self, test_loader, epoch, *args, **kwargs):
+    def validate(self, test_loader, evaluation=False, *args, **kwargs):
         all_res = {}
         max_gen_vali_shape = int(getattr(self.cfg.trainer, "max_gen_validate_shapes", 100))
-        
+
         # calculate fpd score
         # fpd = self.validate_fpd(test_loader)
         # all_res = {"FPD": fpd}
@@ -244,7 +244,7 @@ class Trainer(BaseTrainer):
                 pcs = self.decoder(w)
                 all_smp.append(pcs)
         smp = torch.cat(all_smp, dim=0)[:ref_num]
-        # np.save(os.path.join(self.cfg.save_dir, 'val', 'smp_ep%d.npy' % epoch), smp.detach().cpu().numpy())
+        np.save(os.path.join(self.cfg.save_dir, 'val', 'smp.npy'), smp.detach().cpu().numpy())
         smp = normalize_point_clouds(smp)
         ref = normalize_point_clouds(ref)
         # sub_sampled = random.sample(range(ref.size(0)), 200)
@@ -256,10 +256,11 @@ class Trainer(BaseTrainer):
         jsd = jsd_between_point_cloud_sets(smp.cpu().numpy(), ref.cpu().numpy())
         all_res.update({"JSD": jsd})
         print(f"JSD: {jsd}")
-        
+
         # pdb.set_trace()
-        gen_res = compute_all_metrics(smp, ref, batch_size=int(getattr(self.cfg.trainer, "val_metrics_batch_size", 100)), accelerated_cd=True)
-        all_res.update({("val/gen/%s" % k): (v if isinstance(v, float) else v.item()) for k, v in gen_res.items()})
+        if evaluation:
+            gen_res = compute_all_metrics(smp, ref, batch_size=int(getattr(self.cfg.trainer, "val_metrics_batch_size", 100)), accelerated_cd=True)
+            all_res.update({("val/gen/%s" % k): (v if isinstance(v, float) else v.item()) for k, v in gen_res.items()})
         print("Validation Done")
 
         return all_res

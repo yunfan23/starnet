@@ -15,7 +15,7 @@ trainer:
   type: trainers.ae_sparenet_trainer_3D
   epochs: 551
   val_metrics_batch_size: 400
-  cd_weight: 1.
+  cd_weight: 0.
   seed: 100
   opt_dec:
     type: 'adam'

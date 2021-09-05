@@ -1,2 +1,0 @@
-CUDA_VISIBLE_DEVICES=1 \
-python test.py ./logs/chair_v3_2021-Sep-02-12-33-05/config/chair_v3.yaml --pretrained ./logs/chair_v3_2021-Sep-02-12-33-05/checkpoints/epoch_450_iters_0.pt

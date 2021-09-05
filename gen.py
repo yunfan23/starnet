@@ -87,7 +87,8 @@ def main_worker(cfg, args):
 
     # main training loop
     print("start gen ...")
-    trainer.generate_v2(train_loader, vis=True)
+    # trainer.generate_v2(train_loader, vis=True)
+    trainer.generate_v3(cfg.data.cates[0], vis=True)
     print("finish gen ...")
 
 
