@@ -322,7 +322,37 @@ class Trainer(BaseTrainer):
         #     "c3408a7be501f09070d98a97e17b4da3",
         #     "c48af98d47f76002deed0e4a55ad5dd6"
         # ]
-        files = ["", "", "", "", "", "", "", "", "", ""]
+        chair_files = [
+            "1006be65e7bc937e9141f9b58470d646",
+            "1007e20d5e811b308351982a6e40cf41",
+            "100b18376b885f206ae9ad7e32c4139d",
+            "1013f70851210a618f2e765c4a8ed3d",
+            "1015e71a0d21b127de03ab2a27ba7531",
+            "1016f4debe988507589aae130c1f06fb",
+            "1022fe7dd03f6a4d4d5ad9f13ac9f4e7",
+            "1028b32dc1873c2afe26a3ac360dbd4",
+            "1031fc859dc3177a2f84cb7932f866fd",
+            "1033ee86cc8bac4390962e4fb7072b86",
+        ]
+        car_files = [
+            "100715345ee54d7ae38b52b4ee9d36a3",
+            "100c3076c74ee1874eb766e5a46fceab",
+            "10247b51a42b41603ffe0e5069bf1eb5",
+            "10555502fa7b3027283ffcfc40c29975",
+            "105dedf1b70c2826b2dcc642c86ae8f4",
+            "10716a366de708b8fac96522b26f7fd",
+            "107699ca67fcdf3fea999fe4ffdc2504",
+            "1079efee042629d4ce28f0f1b509eda",
+            "107a17c6f2dd9c488924120dfad0e290",
+            "1089cbe82dc0e72133d7c9e122eec9b6",
+        ]
+        if cate == "car":
+            files = car_files
+        elif cate == "chair":
+            files = chair_files
+        else:
+            files = files_list
+
         data = []
         for file in files:
             filepath = os.path.join(sub_dir, file + ".npy")
@@ -361,6 +391,44 @@ class Trainer(BaseTrainer):
             if vis:
                 visualize_point_clouds_img(samples.cpu().numpy(), inps.cpu().numpy(), bs=0, cate=cate)
 
+    def generate_v4(self, cate, vis=True):
+        print(cate)
+        id = cate_to_synsetid[cate]
+        self.encoder.eval()
+        self.decoder.eval()
+        os.makedirs(f"./results/{cate}", exist_ok=True)
+        root = "./data/dataset/ShapeNetCore.v2.PC2k/"
+        sub_dir = os.path.join(root, id, "all")
+        files = glob.glob(sub_dir + "/*.npy")
+
+        data = []
+        samples = []
+        inps = []
+        for file in tqdm.tqdm(files):
+            data = np.load(file)[np.newaxis, ...]
+            data = torch.from_numpy(data)
+            # print(data.shape)
+            data = normalize_point_clouds(data)
+            with torch.no_grad():
+                inp = data.cuda()
+                z, _ = self.encoder(inp)
+                sample = self.decoder(z)
+
+                samples.append(sample)
+                inps.append(inp)
+
+        input_filename = f"./results/{cate}/inps_{cate}.npy"
+        output_filename = f"./results/{cate}/outs_{cate}.npy"
+        inps = torch.cat(inps, dim = 0)
+        samples = torch.cat(samples, dim = 0)
+        print(inps.size())
+        with open(input_filename, 'wb') as f:
+            np.save(f, inps.cpu().numpy())
+        with open(output_filename, 'wb') as f:
+            np.save(f, samples.cpu().numpy())
+        # if vis:
+            # visualize_point_clouds_img(samples.cpu().numpy(), inps.cpu().numpy(), bs=0, cate=cate)
+
     def reconstruct(self, inps, num_points=2048):
         with torch.no_grad():
             self.encoder.eval()
@@ -376,9 +444,10 @@ class Trainer(BaseTrainer):
         cate = self.cfg.data.cates[0]
         data = next(iter(dataloader))
         np.random.seed(901)
+        print(data["tr_points"].size())
         # (src_idx, tgt_idx) = np.random.choice(data["tr_points"].size(0), 2)
         # (src_idx, tgt_idx) = (5, 21)
-        (src_idx, tgt_idx) = (1, 7)
+        (src_idx, tgt_idx) = (2, 17)
         print(f"source {src_idx}, target {tgt_idx}")
 
         with torch.no_grad():
@@ -390,7 +459,8 @@ class Trainer(BaseTrainer):
             print(z.shape)
             z_lerps = []
             # import pdb; pdb.set_trace()
-            for w in np.linspace(-0.5, 1.5, 21):
+            # for w in np.linspace(-0.5, 1.5, 21):
+            for w in np.linspace(0.0, 1.0, 6):
                 z_lerps.append(z[0].lerp(z[1], w).unsqueeze(0))
             z_lerps = torch.cat(z_lerps, dim=0)
             print(z_lerps.shape)

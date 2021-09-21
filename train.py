@@ -125,7 +125,7 @@ def main_worker(cfg, args):
         if epoch % int(cfg.viz.save_freq) == 0 and int(cfg.viz.save_freq) > 0:
             trainer.save(epoch=epoch, step=step)
 
-        if epoch % int(cfg.viz.val_freq) == 0 and int(cfg.viz.val_freq) > 0 and epoch != 0:
+        if epoch % int(cfg.viz.val_freq) == 0 and int(cfg.viz.val_freq) > 0:
             val_info = trainer.validate(test_loader, epoch=epoch)
             trainer.log_val(val_info, writer=writer, epoch=epoch)
 

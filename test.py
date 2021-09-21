@@ -78,7 +78,9 @@ def main_worker(cfg, args):
         trainer.multi_gpu_wrapper(wrapper)
     trainer.resume(args.pretrained)
     print(cfg.save_dir)
-    val_info = trainer.validate(test_loader, epoch=-1, evaluation=True)
+    smp = "logs/airplane_gen_v2_2021-Sep-08-16-35-19/val/smp_2600.npy"
+    ref = "logs/airplane_gen_v2_2021-Sep-08-16-35-19/val/ref_2600.npy"
+    val_info = trainer.validate(test_loader, epoch=-1, evaluation=True, smp=smp, ref=ref)
     # val_info = trainer.validate_fpd(test_loader, epoch=-1)
     # val_info = trainer.validate_fpd(train_loader, epoch=-1)
     pprint(val_info)

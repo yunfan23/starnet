@@ -12,7 +12,8 @@ from evaluation.evaluation_metrics import (compute_all_metrics,
 from Frechet.FPD import calculate_fpd
 
 from trainers.ae_sparenet_trainer_3D import Trainer as BaseTrainer
-from trainers.utils.gan_losses import dis_loss, gen_loss, gradient_penalty, gradient_penalty_orig
+from trainers.utils.gan_losses import dis_loss, gen_loss, gradient_penalty
+from gradient_penalty import GradientPenalty
 from trainers.utils.utils import (count_parameters, get_opt,
                                   normalize_point_clouds)
 from trainers.utils.vis_utils import (visualize_point_clouds_3d,
@@ -36,6 +37,8 @@ class Trainer(BaseTrainer):
         self.dis.cuda()
         print(f"Discriminator : {count_parameters(self.dis)}")
         print(self.dis)
+
+        self.GP = GradientPenalty(1, gamma=1, device=torch.device("cuda"))
 
         # Optimizers
         if not (hasattr(self.cfg.trainer, "opt_gen") and
@@ -112,7 +115,6 @@ class Trainer(BaseTrainer):
             gp_weight = getattr(self.cfg.trainer, 'gp_weight', 10.)
             gp_type = getattr(self.cfg.trainer, 'gp_type', "zero_center")
             gp, gp_res = gradient_penalty(x_real, x_fake, d_real, d_fake, weight=gp_weight, gp_type=gp_type)
-            # gp, gp_res = gradient_penalty_orig(x_real, x_fake, d_real, d_fake, weight=gp_weight, gp_type=gp_type)
             loss_res.update({("train/gan_pass/gp_loss/%s" % k): v for k, v in gp_res.items() })
             dis_loss_weight = getattr(self.cfg.trainer, "dis_loss_weight", 1.)
             loss_dis, dis_loss_res = dis_loss(d_real, d_fake, weight=dis_loss_weight, loss_type=loss_type)
@@ -207,19 +209,6 @@ class Trainer(BaseTrainer):
             pcs = self.decoder(z)
             return pcs
 
-    def generate_v3(self, dataset=None, num_shapes=100, num_points=2048, vis=True):
-        with torch.no_grad():
-            cate = self.cfg.data.cates[0]
-            self.gen.eval()
-            self.decoder.eval()
-            z = self.gen(bs=num_shapes)
-            imgs = self.decoder(z)
-            visualize_point_clouds_img(imgs.cpu().numpy(), None, cate=cate)
-            os.makedirs("results", exist_ok=True)
-            output_file = f"./results/{cate}_gen_sample.npy"
-            with open(output_file, "wb") as f:
-                np.save(f, imgs.cpu().numpy())
-
     def generate(self, num_shapes=10, num_points=2048):
         with torch.no_grad():
             cate = self.cfg.data.cates[0]
@@ -233,7 +222,7 @@ class Trainer(BaseTrainer):
             with open(output_file, "wb") as f:
                 np.save(f, imgs.cpu().numpy())
 
-    def validate(self, test_loader, epoch, evaluation=False, smp=None, ref=None, *args, **kwargs):
+    def validate(self, test_loader, epoch, evaluation=False, *args, **kwargs):
         all_res = {}
         max_gen_vali_shape = int(getattr(self.cfg.trainer, "max_gen_validate_shapes", 100))
 
@@ -241,41 +230,34 @@ class Trainer(BaseTrainer):
         # fpd = self.validate_fpd(test_loader)
         # all_res = {"FPD": fpd}
 
-        if smp is None and ref is None:
-            all_ref, all_smp = [], []
-            # reference point clouds
-            for data in tqdm.tqdm(test_loader, 'Dataset'):
-                ref_pts = data['tr_points']
-                all_ref.append(ref_pts)
-            ref = torch.cat(all_ref, dim=0).cuda()
+        all_ref, all_smp = [], []
+        # reference point clouds
+        for data in tqdm.tqdm(test_loader, 'Dataset'):
+            ref_pts = data['tr_points']
+            all_ref.append(ref_pts)
+        ref = torch.cat(all_ref, dim=0).cuda()
 
-            ref_num = ref.size(0)
-            for i in tqdm.tqdm(range(0, math.ceil(ref_num / max_gen_vali_shape)), 'Generate'):
-                with torch.no_grad():
-                    self.gen.eval()
-                    self.decoder.eval()
-                    z = torch.randn((max_gen_vali_shape, 128)).cuda()
-                    w = self.gen(z=z)
-                    pcs = self.decoder(w)
-                    all_smp.append(pcs)
-            smp = torch.cat(all_smp, dim=0)[:ref_num]
-            smp = normalize_point_clouds(smp)
-            ref = normalize_point_clouds(ref)
-            np.save(os.path.join(self.cfg.save_dir, 'val', f'smp_{epoch}.npy'), smp.detach().cpu().numpy())
-            np.save(os.path.join(self.cfg.save_dir, 'val', f'ref_{epoch}.npy'), ref.cpu().numpy())
-            # sub_sampled = random.sample(range(ref.size(0)), 200)
-            # smp = smp[sub_sampled, ...].contiguous()
-            # ref = ref[sub_sampled, ...].contiguous()
-            print(f"Sample Shape {smp.shape}")
-            print(f"Reference Shape {ref.shape}")
+        ref_num = ref.size(0)
+        for i in tqdm.tqdm(range(0, math.ceil(ref_num / max_gen_vali_shape)), 'Generate'):
+            with torch.no_grad():
+                self.gen.eval()
+                self.decoder.eval()
+                z = torch.randn((max_gen_vali_shape, 128)).cuda()
+                w = self.gen(z=z)
+                pcs = self.decoder(w)
+                all_smp.append(pcs)
+        smp = torch.cat(all_smp, dim=0)[:ref_num]
+        smp = normalize_point_clouds(smp)
+        ref = normalize_point_clouds(ref)
+        np.save(os.path.join(self.cfg.save_dir, 'val', f'smp_{epoch}.npy'), smp.detach().cpu().numpy())
+        np.save(os.path.join(self.cfg.save_dir, 'val', f'ref_{epoch}.npy'), ref.cpu().numpy())
+        # sub_sampled = random.sample(range(ref.size(0)), 200)
+        # smp = smp[sub_sampled, ...].contiguous()
+        # ref = ref[sub_sampled, ...].contiguous()
+        print(f"Sample Shape {smp.shape}")
+        print(f"Reference Shape {ref.shape}")
 
-            jsd = jsd_between_point_cloud_sets(smp.cpu().numpy(), ref.cpu().numpy())
-        else:
-            smp = np.load(smp)
-            ref = np.load(ref)
-            jsd = jsd_between_point_cloud_sets(smp, ref)
-            smp = torch.from_numpy(smp).cuda()
-            ref = torch.from_numpy(ref).cuda()
+        jsd = jsd_between_point_cloud_sets(smp.cpu().numpy(), ref.cpu().numpy())
         all_res.update({"JSD": jsd})
         print(f"Epoch {epoch}, JSD: {jsd}")
 

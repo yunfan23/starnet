@@ -19,8 +19,10 @@ def visualize_point_clouds_img(inps, pcs, bs=0, cate="airplane"):
 
     for idx in range(B):
         inp = inps[idx]
-        uplim = inp.max()
-        lowlim = inp.min()
+        uplim = 1.0
+        lowlim = -1.0
+        # uplim = inp.max()
+        # lowlim = inp.min()
         fig = plt.figure(figsize=(20, 10))
         plt.subplots_adjust(top=1,bottom=0,left=0,right=1,hspace=0,wspace=0)
         ax = fig.add_subplot(1, 2, 1, projection='3d')
@@ -29,24 +31,32 @@ def visualize_point_clouds_img(inps, pcs, bs=0, cate="airplane"):
         ax.set_axis_off()
         if cate == "car":
             ax.view_init(0, 0)
+            ax.set_xlim(lowlim, uplim)
             ax.set_ylim(lowlim, uplim)
+            ax.set_zlim(lowlim, uplim)
         else:
             ax.view_init(8, -85)
+            ax.set_xlim(lowlim, uplim)
+            ax.set_ylim(lowlim, uplim)
+            ax.set_zlim(lowlim, uplim)
 
         if pcs is not None:
             pc = pcs[idx]
-            uplim = pc.max()
-            lowlim = pc.min()
+            # uplim = pc.max()
+            # lowlim = pc.min()
             ax1 = fig.add_subplot(1, 2, 2, projection='3d')
             ax1.scatter(pc[:, 0], pc[:, 1], pc[:, 2], s=3, zdir='y')
             ax1.set_title("gt")
             if cate == "car":
                 ax1.view_init(0, 0)
-                # ax1.set_xlim(lowlim, uplim)
+                ax1.set_xlim(lowlim, uplim)
                 ax1.set_ylim(lowlim, uplim)
-                # ax1.set_zlim(lowlim, uplim)
+                ax1.set_zlim(lowlim, uplim)
             else:
                 ax1.view_init(8, -85)
+                ax.set_xlim(lowlim, uplim)
+                ax.set_ylim(lowlim, uplim)
+                ax.set_zlim(lowlim, uplim)
             ax1.set_axis_off()
         # plt.autoscale(tight=True)
         os.makedirs(f"./images/{cate}/", exist_ok=True)

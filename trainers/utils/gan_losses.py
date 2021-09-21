@@ -134,3 +134,23 @@ def gradient_penalty(x_real, x_fake, d_real, d_fake, weight=1., gp_type='zero_ce
         'grad_orig': gp_orig.clone().detach().cpu(),
         'grad_norm': grad_norm.mean().clone().detach().cpu()
     }
+
+def gradient_penalty_orig(x_real, x_fake, d_real, d_fake,
+                     weight=1., gp_type='zero_center', eps=1e-8):
+    if gp_type == "zero_center":
+        bs = d_real.size(0)
+        grad = torch.autograd.grad(
+            outputs=d_real, inputs=x_real,
+            grad_outputs=torch.ones_like(d_real).to(d_real),
+            create_graph=True, retain_graph=True)[0]
+        # [grad] should be either (B, D) or (B, #points, D)
+        grad = grad.reshape(bs, -1)
+        grad_norm = gp_orig = torch.sqrt(torch.sum(grad ** 2, dim=1)).mean()
+        gp = gp_orig ** 2. * weight
+        return gp, {
+            'gp': gp.clone().detach().cpu(),
+            'gp_orig': gp_orig.clone().detach().cpu(),
+            'grad_norm': grad_norm.clone().detach().cpu()
+        }
+    else:
+        raise NotImplemented("Invalid gp type:%s" % gp_type)

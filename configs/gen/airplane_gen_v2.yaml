@@ -15,14 +15,14 @@ data:
 
 viz:
   save_freq: 100
-  log_freq: 1000
+  log_freq: 100
   viz_freq: 400
-  val_freq: -1
+  val_freq: 100
 
 trainer:
   # type: trainers.lgan_trainer_3D_v2
   type: trainers.lgan_trainer_3D
-  epochs: 20001
+  epochs: 10001
   seed: 100
   val_metrics_batch_size: 400
   max_gen_validate_shapes: 607
@@ -33,35 +33,35 @@ trainer:
     type: 'adam'
     lr: 1e-4
     beta1: 0.5
-    beta2: 0.99
+    beta2: 0.9
     weight_decay: 0.
   opt_enc:
     type: 'adam'
     lr: 1e-4
     beta1: 0.5
-    beta2: 0.99
+    beta2: 0.9
     weight_decay: 0.
 
   # For GAN
-  ae_pretrained: '/home/yunfan/workarea/stylegan_pcgen.v1/logs/airplane_v3_2021-Sep-03-13-08-15/checkpoints/epoch_450_iters_0.pt'
+  ae_pretrained: '/home/yunfan/workarea/stylegan_pcgen.v1/pretrained/recon/airplane_v3_2021-Sep-03-13-08-15/checkpoints/epoch_450_iters_0.pt'
   gan_only: True
   gan_loss_type: "wgan"
   # Gradient penalty
-  gp_weight: 10.
+  gp_weight: 1.
   gp_type: 'zero_center'
   n_critics: 1
   opt_gen:
     type: 'adam'
     lr: 1e-4
     beta1: 0.5
-    beta2: 0.9
+    beta2: 0.99
     step: False
     weight_decay: 0.
   opt_dis:
     type: 'adam'
     lr: 1e-4
     beta1: 0.5
-    beta2: 0.9
+    beta2: 0.99
     step: False
     weight_decay: 0.
 
