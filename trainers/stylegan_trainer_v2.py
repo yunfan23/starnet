@@ -1,7 +1,8 @@
 import importlib
 import os
 import random
-
+import math
+import pdb
 import numpy as np
 import torch
 import torch.nn as nn
@@ -10,7 +11,8 @@ from models.generators.mlp_gen import truncated_normal
 
 from trainers.base_trainer import BaseTrainer
 from trainers.utils.gan_losses import dis_loss, gen_loss, gradient_penalty
-from trainers.utils.utils import ForkedPdb, get_opt, visualize_point_clouds_3d
+from trainers.utils.utils import ForkedPdb, get_opt, visualize_point_clouds_3d, normalize_point_clouds
+from evaluation.evaluation_metrics import compute_all_metrics, jsd_between_point_cloud_sets
 
 try:
     from evaluation.evaluation_metrics import compute_all_metrics
@@ -23,54 +25,45 @@ except:  # noqa
 class Trainer(BaseTrainer):
 
     def __init__(self, cfg, args):
-        super().__init__(cfg, args)
+        # super().__init__(cfg, args)
         self.cfg = cfg
         self.args = args
 
         # Now initialize the GAN part
         gen_lib = importlib.import_module(cfg.models.gen.type)
-        self.gen = gen_lib.Generator(cfg.models.gen)
+        self.gen = gen_lib.Generator(cfg, cfg.models.gen)
         self.gen.cuda()
         # self.gen = nn.DataParallel(self.gen)
-
         print("Generator:")
         print(self.gen)
-        # ForkedPdb().set_trace()
+
+        dec_lib = importlib.import_module(cfg.models.decoder.type)
+        self.dec = dec_lib.Decoder(cfg.models.decoder)
+        self.dec.cuda()
+        # self.dec = nn.DataParallel(self.dec)
+        print("Decoder:")
+        print(self.dec)
 
         dis_lib = importlib.import_module(cfg.models.dis.type)
         self.dis = dis_lib.Discriminator(cfg.models.dis)
         self.dis.cuda()
         # self.dis = nn.DataParallel(self.dis)
-
         print("Discriminator:")
         print(self.dis)
 
         # import pdb; pdb.set_trace()
         # Optimizers
-        if not (hasattr(self.cfg.trainer, "opt_gen") and
-                hasattr(self.cfg.trainer, "opt_dis")):
-            self.cfg.trainer.opt_gen = self.cfg.trainer.opt
-            self.cfg.trainer.opt_dis = self.cfg.trainer.opt
-        self.opt_gen, self.scheduler_gen = get_opt(
-            self.gen.parameters(), self.cfg.trainer.opt_gen)
-        self.opt_dis, self.scheduler_dis = get_opt(
-            self.dis.parameters(), self.cfg.trainer.opt_dis)
+        self.opt_dec, self.scheduler_dec = get_opt(self.dec.parameters(), self.cfg.trainer.opt_dec)
+        self.opt_gen, self.scheduler_gen = get_opt(self.gen.parameters(), self.cfg.trainer.opt_gen)
+        self.opt_dis, self.scheduler_dis = get_opt(self.dis.parameters(), self.cfg.trainer.opt_dis)
 
         # book keeping
         self.total_iters = 0
         self.total_gan_iters = 0
         self.n_critics = getattr(self.cfg.trainer, "n_critics", 1)
-        self.gan_only = getattr(self.cfg.trainer, "gan_only", True)
-        self.prior_type = getattr(cfg.models, "prior", "gaussian")
-        # get prior noise when initializing
-        self.num_vis = getattr(self.cfg.inference, "num_vis_samples", 5)
-        self.same_prior = getattr(self.cfg.inference, "same_prior", False)
-        if self.same_prior:
-            self.noise = self.get_prior(bs=self.num_vis).cuda()
-        else:
-            self.noise = None
 
     def multi_gpu_wrapper(self, wrapper):
+        self.dec = wrapper(self.dec)
         self.gen = wrapper(self.gen)
         self.dis = wrapper(self.dis)
 
@@ -88,9 +81,17 @@ class Trainer(BaseTrainer):
                 writer.add_scalar(
                     'train/opt_gen_lr', self.scheduler_gen.get_lr()[0], epoch)
 
+        if self.scheduler_dec is not None:
+            self.scheduler_dec.step(epoch=epoch)
+            if writer is not None:
+                writer.add_scalar(
+                    'train/opt_dec_lr', self.scheduler_dec.get_lr()[0], epoch)
+
     def _update_gan_(self, data, gen=False):
+        self.dec.train()
         self.gen.train()
         self.dis.train()
+        self.opt_dec.zero_grad()
         self.opt_gen.zero_grad()
         self.opt_dis.zero_grad()
 
@@ -99,8 +100,7 @@ class Trainer(BaseTrainer):
         batch_size = x_real.size(0)
         z = self.get_prior(batch_size).cuda()
         z.requires_grad_(True)
-        x_fake, _ = self.gen(z)
-        x_fake = x_fake.transpose(1, 2)
+        x_fake = self.dec(self.gen(z))
         x_inp = torch.cat([x_real, x_fake], dim=0)
         d_res = self.dis(x_inp)
         d_real = d_res[:batch_size, ...]
@@ -112,6 +112,7 @@ class Trainer(BaseTrainer):
             gen_loss_weight = getattr(self.cfg.trainer, "gen_loss_weight", 1.)
             loss_gen, gen_loss_res = gen_loss(d_real, d_fake, weight=gen_loss_weight, loss_type=loss_type)
             loss_gen.backward()
+            # self.opt_dec.step()
             self.opt_gen.step()
             loss_res.update({("train/gen/%s" % k): v for k, v in gen_loss_res.items()})
         else:
@@ -141,59 +142,37 @@ class Trainer(BaseTrainer):
         res.update(dis_res)
         return res
 
-    def update(self, data, res, *args, **kwargs):
-        # continue update res
-        # ForkedPdb().set_trace()
-        gan_res = self.update_gan(data)
-
-        # if res is empty return gan_res
-        if not res:
-            return gan_res
-        # update average value
-        for k, v in res.items():
-            if not ('loss' in k):
-                continue
-            res[k] = (v + gan_res[k]) / 2.
+    def update(self, dataset, *args, **kwargs):
+        for data in dataset:
+            res = self.update_gan(data)
         return res
 
-    def log_train(self, train_info, train_data, writer=None, step=None, epoch=None, visualize=False, **kwargs):
+    def log_train(self, train_info, writer=None, step=None, epoch=None, visualize=False, **kwargs):
         # Log training information to tensorboard
-        # ForkedPdb().set_trace()
         train_info = {k: (v.cpu() if not isinstance(v, float) else v) for k, v in train_info.items()}
         for k, v in train_info.items():
             if not ('loss' in k):
                 continue
             assert epoch is not None
             writer.add_scalar('train/' + k, v, epoch)
-        # writer.add_histogram('tr/latent_real', train_info['x_real'], epoch)
-        # writer.add_histogram('tr/latent_fake', train_info['x_fake'], epoch)
 
         if visualize:
             with torch.no_grad():
                 print("Visualize generation results: %s" % epoch)
-                gtr = train_data['te_points']  # ground truth point cloud
-                imgs, prog_imgs = self.gen(self.get_prior(self.num_vis).cuda())
-                imgs = imgs.transpose(1, 2)
-                all_imgs = []
-                # view progressive geneneration
-                for idx in range(self.num_vis):
-                    img_list, title_list = [gtr[idx]], ["gt"]
-                    for prog_img in prog_imgs:
-                        prog_img = prog_img.transpose(1, 2)
-                        img_list.append(prog_img[idx])
-                        title_list.append(f"prog_img_{prog_img[idx].size(0)}")
-                    title_list = title_list if idx == 0 else None
-                    img = visualize_point_clouds_3d(img_list, title_list)
-                    all_imgs.append(img)
-                img = np.concatenate(all_imgs, axis=1)
-                writer.add_image('tr_vis/gen', torch.as_tensor(img), epoch)
+                pcs = self.dec(self.gen(self.get_prior(10).cuda()))
+                # np.save("smp.npy", pcs.cpu().numpy())
+                # writer.add_mesh('tr_vis/mesh', pcs[:4], global_step=epoch)
+                imgs = visualize_point_clouds_3d(pcs)
+                writer.add_image('tr_vis/img', torch.as_tensor(imgs), epoch)
 
     def save(self, epoch=None, step=None, appendix=None, **kwargs):
         d = {
             'opt_dis': self.opt_dis.state_dict(),
             'opt_gen': self.opt_gen.state_dict(),
+            'opt_dec': self.opt_dec.state_dict(),
             'dis': self.dis.state_dict(),
             'gen': self.gen.state_dict(),
+            'dec': self.dec.state_dict(),
             'epoch': epoch,
             'step': step
         }
@@ -204,107 +183,127 @@ class Trainer(BaseTrainer):
         torch.save(d, path)
 
     def resume(self, path, strict=True, **args):
-        ckpt = torch.load(path)
-        # start_epoch = ckpt['epoch']
-        start_epoch = 0
+        # If pretrained AE, then load it up
+        # print(self.cfg.trainer.ae_pretrained)
+        # ckpt = torch.load(self.cfg.trainer.ae_pretrained)
+        # self.dec.load_state_dict(ckpt['dec'], strict=True)
+        # self.opt_dec.load_state_dict(ckpt['opt_dec'])
 
-        # ForkedPdb().set_trace()
-        if 'gen' in ckpt:
-            # load pre-trained low resolution checkpoint to continue training
-            self.gen.load_state_dict(ckpt['gen'], strict=strict)
+        # gen_ckpt = torch.load(path)
+        # self.gen.load_state_dict(gen_ckpt['gen'], strict=True)
+        # self.opt_gen.load_state_dict(gen_ckpt['opt_gen'])
+        # return 0
+    
+        ckpt = torch.load(path)
+        # self.encoder.load_state_dict(ckpt['enc'], strict=strict)
+        self.dec.load_state_dict(ckpt['dec'], strict=strict)
+        # self.opt_enc.load_state_dict(ckpt['opt_enc'])
+        # self.opt_dec.load_state_dict(ckpt['opt_dec'])
+        start_epoch = ckpt['epoch']
+
+        # if 'gen' in ckpt:
+            # self.gen.load_state_dict(ckpt['gen'], strict=strict)
         # if 'dis' in ckpt:
             # self.dis.load_state_dict(ckpt['dis'], strict=strict)
         # if 'opt_gen' in ckpt:
-        #     self.opt_gen.load_state_dict(ckpt['opt_gen'], strict=strict)
+            # self.opt_gen.load_state_dict(ckpt['opt_gen'])
         # if 'opt_dis' in ckpt:
-        #     self.opt_dis.load_state_dict(ckpt['opt_dis'], strict=stric)
-        return start_epoch
+            # self.opt_dis.load_state_dict(ckpt['opt_dis'])
+        return 0
 
-    def validate_baseline(self, test_loader, epoch, *args, **kwargs):
-        all_res = {}
-
-        if eval_generation:
-            with torch.no_grad():
-                print("BaseLine validation:")
-                all_ref, all_smp = [], []
-                for data in tqdm.tqdm(test_loader):
-                    ref_pts = data['te_points'].cuda()
-                    all_ref.append(ref_pts.view(ref_pts.size(0), ref_pts.size(1), ref_pts.size(2)))
-
-                ref = torch.cat(all_ref, dim=0)
-
-                # Sample CD/EMD
-                # step 1: subsample shapes
-                max_gen_vali_shape = int(getattr(self.cfg.trainer, "max_gen_validate_shapes", int(ref.size(0))))
-                sub_sampled = random.sample(range(ref.size(0)), min(ref.size(0), max_gen_vali_shape))
-                ref_sub = ref[sub_sampled, ...].contiguous()
-
-                gen_res = compute_all_metrics(ref_sub, ref_sub, batch_size=int(getattr(self.cfg.trainer, "val_metrics_batch_size", 100)), accelerated_cd=True)
-                all_res = {("val/gen/%s" % k): (v if isinstance(v, float) else v.item()) for k, v in gen_res.items()}
-                print("Validation Sample (unit) Epoch:%d " % epoch, gen_res)
-
-        return all_res
-
-    def validate(self, test_loader, epoch, *args, **kwargs):
-        all_res = {}
-
-        if eval_generation:
-            with torch.no_grad():
-                print("Style-GAN validation:")
-                all_ref, all_smp = [], []
-                for data in tqdm.tqdm(test_loader):
-                    ref_pts = data['te_points'].cuda()
-                    inp_pts = data['tr_points'].cuda()
-                    with torch.no_grad():
-                        self.gen.eval()
-                        # put noise in cuda device
-                        outputs, _ = self.gen(self.get_prior(ref_pts.size(0)).cuda())
-                        smp_pts = outputs.transpose(1, 2).contiguous()
-                    all_smp.append(smp_pts.view(ref_pts.size(0), ref_pts.size(1), ref_pts.size(2)))
-                    all_ref.append(ref_pts.view(ref_pts.size(0), ref_pts.size(1), ref_pts.size(2)))
-
-                smp = torch.cat(all_smp, dim=0)
-                np.save(os.path.join(self.cfg.save_dir, 'val','smp_ep%d.npy' % epoch), smp.detach().cpu().numpy())
-                ref = torch.cat(all_ref, dim=0)
-
-                # Sample CD/EMD
-                # step 1: subsample shapes
-                max_gen_vali_shape = int(getattr(self.cfg.trainer, "max_gen_validate_shapes", int(smp.size(0))))
-                sub_sampled = random.sample(range(smp.size(0)), min(smp.size(0), max_gen_vali_shape))
-                smp_sub = smp[sub_sampled, ...].contiguous()
-                ref_sub = ref[sub_sampled, ...].contiguous()
-
-                gen_res = compute_all_metrics(
-                    smp_sub, ref_sub,
-                    batch_size=int(getattr(self.cfg.trainer, "val_metrics_batch_size", 100)), accelerated_cd=True)
-                all_res = {("val/gen/%s" % k): (v if isinstance(v, float) else v.item())
-                    for k, v in gen_res.items()}
-                print("Validation Sample (unit) Epoch:%d " % epoch, gen_res)
-
-        # Call super class validation
-        if getattr(self.cfg.trainer, "validate_recon", False):
-            all_res.update(super().validate(
-                test_loader, epoch, *args, **kwargs))
-
-        return all_res
 
     # get and save the same prior for shape generation
     def get_prior(self, bs, dim=128):
-        truncate_std = getattr(self.cfg.models, "truncate_std", 2.)
         gaussian_scale = getattr(self.cfg.models, "gaussian_scale", 1.)
-        if self.prior_type == "truncate_gaussian":
-            noise = (torch.randn(bs, self.cfg.models.gen.z_dim) * gaussian_scale).cuda()
-            noise = truncated_normal(noise, 0, gaussian_scale, truncate_std)
-            return noise
-        elif self.prior_type == "gaussian":
-            return torch.randn(bs, self.cfg.models.gen.z_dim) * gaussian_scale
+        return torch.randn(bs, dim) * gaussian_scale
+
+    def validate(self, test_loader, idx, evaluation=False, smp=None, ref=None, *args, **kwargs):
+        all_res = {}
+        max_gen_vali_shape = int(getattr(self.cfg.trainer, "max_gen_validate_shapes", 100))
+
+        # calculate fpd score
+        # fpd = self.validate_fpd(test_loader)
+        # all_res = {"FPD": fpd}
+
+        if smp is None and ref is None:
+            all_ref, all_smp = [], []
+            # reference point clouds
+            for data in tqdm.tqdm(test_loader, 'Dataset'):
+                ref_pts = data['tr_points']
+                all_ref.append(ref_pts)
+            ref = torch.cat(all_ref, dim=0).cuda()
+
+            ref_num = ref.size(0)
+            for i in tqdm.tqdm(range(0, math.ceil(ref_num / max_gen_vali_shape)), 'Generate'):
+                with torch.no_grad():
+                    self.gen.eval()
+                    self.dec.eval()
+                    z = torch.randn((max_gen_vali_shape, 128)).cuda()
+                    w = self.gen(z=z)
+                    pcs = self.dec(w)
+                    all_smp.append(pcs)
+            smp = torch.cat(all_smp, dim=0)[:ref_num]
+            smp = normalize_point_clouds(smp)
+            ref = normalize_point_clouds(ref)
+            np.save(os.path.join(self.cfg.save_dir, 'val', f'smp_{idx}.npy'), smp.detach().cpu().numpy())
+            np.save(os.path.join(self.cfg.save_dir, 'val', f'ref_{idx}.npy'), ref.cpu().numpy())
+            # sub_sampled = random.sample(range(ref.size(0)), 200)
+            # smp = smp[sub_sampled, ...].contiguous()
+            # ref = ref[sub_sampled, ...].contiguous()
+            print(f"Sample Shape {smp.shape}")
+            print(f"Reference Shape {ref.shape}")
+
+            jsd = jsd_between_point_cloud_sets(smp.cpu().numpy(), ref.cpu().numpy())
         else:
-            raise NotImplementedError("Invalid prior type:%s" % self.prior_type)
+            smp = np.load(smp)
+            ref = np.load(ref)
+            jsd = jsd_between_point_cloud_sets(smp, ref)
+            smp = torch.from_numpy(smp).cuda()
+            ref = torch.from_numpy(ref).cuda()
+        all_res.update({"JSD": jsd})
+        print(f"jsd: {jsd}")
+
+        # pdb.set_trace()
+        if evaluation:
+            # ref_ids = torch.randint(ref_num, (100,))
+            # smp_ids = torch.randint(ref_num, (150,))
+            # smp_ids = torch.randint(ref_num, (100,))
+            # smp = smp[smp_ids]
+            # ref = ref[ref_ids]
+            gen_res = compute_all_metrics(smp, ref, batch_size=int(getattr(self.cfg.trainer, "val_metrics_batch_size", 100)), accelerated_cd=True)
+            all_res.update({("val/gen/%s" % k): (v if isinstance(v, float) else v.item()) for k, v in gen_res.items()})
+        return all_res
 
 
-    def sample(self, **args):
-        self.gen.eval()
-        z = self.get_prior(1, 256).cuda()
-        samples, _ = self.gen(z)
-        samples = list(samples)
-        visualize_point_clouds_3d(samples)
+    def validate_fpd(self, dataloader, *args, **kwargs):
+        with torch.no_grad():
+            self.gen.eval()
+            self.decoder.eval()
+            all_ref, all_smp = [], []
+            for _ in tqdm.tqdm(range(50), desc="Sample"):
+                z = torch.randn((100, 128)).cuda()
+                w = self.gen(z=z)
+                pcs = self.decoder(w)
+                all_smp.append(pcs)
+
+            # for data in tqdm.tqdm(dataloader, desc="Data"):
+            #     inp_pts = data['tr_points'].cuda()
+            #     all_ref.append(inp_pts)
+
+            smp = torch.cat(all_smp, dim=0)
+            # print(smp.max())
+            # ref = torch.cat(all_ref, dim=0)
+            # import pdb; pdb.set_trace()
+            smp = (smp) / (smp.max(dim=1, keepdim=True)[0] - smp.min(dim=1, keepdim=True)[0]) / 2
+            # ref = (ref) / (ref.max(dim=1, keepdim=True)[0] - ref.min(dim=1, keepdim=True)[0]) / 2
+            # smp = pc_normalize(smp) / 2
+            # ref = pc_normalize(ref) / 2
+            # smp = (smp - smp.min(dim=1, keepdim=True)[0]) / (smp.max(dim=1, keepdim=True)[0] - smp.min(dim=1, keepdim=True)[0]) / 2
+            # ref = (ref - ref.min(dim=1, keepdim=True)[0]) / (ref.max(dim=1, keepdim=True)[0] - ref.min(dim=1, keepdim=True)[0]) / 2
+            # smp = (smp) / (smp.max() - smp.min()) / 2
+            # ref = (ref) / (ref.max() - ref.min()) / 2
+            # smp = (smp - smp.min()) / (smp.max() - smp.min()) / 4
+            # ref = (ref - ref.min()) / (ref.max() - ref.min()) / 4
+            fpd = calculate_fpd(smp, statistic_save_path = './Frechet/pre_statistics_plane.npz', batch_size=100, dims=1808)
+            print(f'Frechet Pointcloud Distance {fpd:.3f}')
+            return fpd

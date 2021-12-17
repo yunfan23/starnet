@@ -5,6 +5,7 @@ import time
 from pdb import set_trace
 from shutil import copy2
 
+import pdb
 import torch
 import torch.distributed
 import yaml
@@ -99,7 +100,8 @@ def main_worker(cfg, args):
 
     if args.resume:
         if args.pretrained is not None:
-            start_epoch = trainer.resume(args.pretrained, strict=False)
+            start_epoch = trainer.resume(args.pretrained, strict=True)
+            val_info = trainer.validate(test_loader, idx=-1)
         else:
             start_epoch = trainer.resume(cfg.resume.dir)
 
@@ -112,23 +114,26 @@ def main_worker(cfg, args):
     # main training loop
     print("Start epoch: %d End epoch: %d" % (start_epoch, cfg.trainer.epochs))
     step = 0
+    logs_info = {}
     for epoch in range(start_epoch, cfg.trainer.epochs):
+        visualize = epoch % int(cfg.viz.viz_freq) == 0
+        # pdb.set_trace()
         start_time = time.time()
-        # for bidx, data in enumerate(train_loader):
-        #     step = bidx + len(train_loader) * epoch
         logs_info = trainer.update(train_loader)
         duration = time.time() - start_time
-        visualize = epoch % int(cfg.viz.viz_freq) == 0
+
         if epoch % int(cfg.viz.log_freq) == 0 and int(cfg.viz.log_freq) > 0:
-            trainer.log_train(logs_info, train_loader, writer=writer, epoch=epoch, visualize=visualize)
+            trainer.log_train(logs_info, writer=writer, epoch=epoch, visualize=visualize)
 
         if epoch % int(cfg.viz.save_freq) == 0 and int(cfg.viz.save_freq) > 0:
             trainer.save(epoch=epoch, step=step)
 
-        if epoch % int(cfg.viz.val_freq) == 0 and int(cfg.viz.val_freq) > 0:
-            val_info = trainer.validate(test_loader, epoch=epoch)
+        if epoch % int(cfg.viz.val_freq) == 0:
+        # if epoch % int(cfg.viz.val_freq) == 0 and int(cfg.viz.val_freq) > 0:
+            val_info = trainer.validate(test_loader, idx=epoch)
             trainer.log_val(val_info, writer=writer, epoch=epoch)
 
+        # pdb.set_trace()
         trainer.epoch_end(epoch, writer=writer)
         if epoch % int(cfg.viz.log_freq) == 0 and int(cfg.viz.log_freq) > 0:
             if 'loss' in logs_info.keys():

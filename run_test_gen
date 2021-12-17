@@ -1,0 +1,13 @@
+# CUDA_VISIBLE_DEVICES=1 python test.py ./logs/chair_v3_2021-Sep-02-12-33-05/config/chair_v3.yaml --pretrained ./logs/chair_v3_2021-Sep-02-12-33-05/checkpoints/epoch_450_iters_0.pt
+# CUDA_VISIBLE_DEVICES=1 python test.py configs/recon/airplane_v3.yaml --pretrained logs/airplane_v3_2021-Sep-03-13-08-15/checkpoints/epoch_450_iters_0.pt
+# CUDA_VISIBLE_DEVICES=1 python test.py configs/recon/airplane_v3.yaml --pretrained ./logs/airplane_v3_2021-Sep-04-11-27-26/checkpoints/epoch_450_iters_0.pt
+# CUDA_VISIBLE_DEVICES=1 python test.py configs/gen/airplane_gen_v2.yaml --pretrained pretrained/gen/airplane_gen_v2_2021-Sep-08-16-35-19/checkpoints/epoch_2200_iters_0.pt
+CUDA_VISIBLE_DEVICES=0 python test.py configs/gen/airplane_gen_v2.yaml --pretrained pretrained/gen/airplane_gen_v2_2021-Sep-08-16-35-19/checkpoints/epoch_4200_iters_0.pt
+# CUDA_VISIBLE_DEVICES=0 python test.py configs/gen/airplane_gen_v2.yaml --pretrained pretrained/gen/airplane_gen_v2_2021-Sep-08-16-35-19/checkpoints/epoch_4200_iters_0.pt
+# CUDA_VISIBLE_DEVICES=1 python test.py configs/gen/airplane_gen_v2.yaml --pretrained pretrained/gen/airplane_gen_v2_2021-Sep-08-16-35-19/checkpoints/epoch_1200_iters_0.pt
+# CUDA_VISIBLE_DEVICES=1 python test.py configs/gen/airplane_gen_v2.yaml --pretrained pretrained/gen/airplane_gen_v2_2021-Sep-08-16-35-19/checkpoints/epoch_3200_iters_0.pt
+# CUDA_VISIBLE_DEVICES=0 python test.py configs/gen/chair_gen_v2.yaml --pretrained logs/chair_gen_v2_2021-Sep-05-01-15-51/checkpoints/epoch_1500_iters_0.pt
+# CUDA_VISIBLE_DEVICES=1 python test.py configs/gen/airplane_gen_v2.yaml --pretrained logs/airplane_gen_v2_2021-Sep-05-23-12-35/checkpoints/epoch_3000_iters_0.pt
+# CUDA_VISIBLE_DEVICES=1 python test.py ./configs/gen/chair_gen_v2.yaml --pretrained logs/chair_gen_v2_2021-Nov-09-19-54-24/checkpoints/epoch_1000_iters_0.pt
+# CUDA_VISIBLE_DEVICES=0 python test.py configs/finetune/airplane_gen_finetune.yaml --pretrained logs/airplane_gen_finetune_2021-Nov-13-09-56-55/checkpoints/epoch_450_iters_0.pt
+# CUDA_VISIBLE_DEVICES=1 python test.py configs/gen/airplane_gen_v2.yaml --pretrained pretrained/gen/airplane_gen_v2_2021-Sep-08-16-35-19/checkpoints/epoch_4200_iters_0.pt

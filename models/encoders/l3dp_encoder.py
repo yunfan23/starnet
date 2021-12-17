@@ -7,7 +7,7 @@ class Encoder(nn.Module):
     def __init__(self, cfgmodel):
         super(Encoder, self).__init__()
         self.zdim = cfgmodel.zdim
-        self.use_deterministic_encoder = cfgmodel.use_deterministic_encoder
+        self.use_deterministic_encoder = False
         self.input_dim = cfgmodel.input_dim
         self.conv1 = nn.Conv1d(self.input_dim, 128, 1)
         self.conv2 = nn.Conv1d(128, 128, 1)
@@ -61,4 +61,4 @@ class Encoder(nn.Module):
             v = F.relu(self.fc_bn2_v(self.fc2_v(v)))
             v = self.fc3_v(v)
 
-        return m, v
+        return m

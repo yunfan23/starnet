@@ -54,9 +54,9 @@ def visualize_point_clouds_img(inps, pcs, bs=0, cate="airplane"):
                 ax1.set_zlim(lowlim, uplim)
             else:
                 ax1.view_init(8, -85)
-                ax.set_xlim(lowlim, uplim)
-                ax.set_ylim(lowlim, uplim)
-                ax.set_zlim(lowlim, uplim)
+                ax1.set_xlim(lowlim, uplim)
+                ax1.set_ylim(lowlim, uplim)
+                ax1.set_zlim(lowlim, uplim)
             ax1.set_axis_off()
         # plt.autoscale(tight=True)
         os.makedirs(f"./images/{cate}/", exist_ok=True)

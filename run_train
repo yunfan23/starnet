@@ -1,0 +1,4 @@
+#!/bin/bash
+# CUDA_VISIBLE_DEVICES=1 python train.py ./configs/recon/airplane_v3.yaml
+# CUDA_VISIBLE_DEVICES=1 python train.py ./configs/gen/airplane_gen_v2.yaml
+CUDA_VISIBLE_DEVICES=0 python train.py ./configs/gen/chair_gen_v2.yaml

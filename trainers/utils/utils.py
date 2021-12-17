@@ -203,14 +203,12 @@ def get_prior(batch_size, num_points=128, inp_dim=128):
 
 
 # Visualization
-def visualize_point_clouds_3d(pcl_lst, title_lst=None, num_vis=3):
-    # pts, gtr, inp):
-    #  breakpoint()
+def visualize_point_clouds_3d(pcl_lst, title_lst=None):
     pcl_lst = [pcl.cpu().detach().numpy() for pcl in pcl_lst]
     if title_lst is None:
         title_lst = [""] * len(pcl_lst)
 
-    fig = plt.figure(figsize=(num_vis * len(pcl_lst), num_vis))
+    fig = plt.figure(figsize=(2 * len(pcl_lst), 2))
     for idx, (pts, title) in enumerate(zip(pcl_lst, title_lst)):
         ax = fig.add_subplot(1, len(pcl_lst), 1 + idx, projection='3d')
         ax.set_title(title)

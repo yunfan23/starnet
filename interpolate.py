@@ -76,7 +76,8 @@ def main_worker(cfg, args):
         trainer.multi_gpu_wrapper(wrapper)
     trainer.resume(args.pretrained)
     print(cfg.save_dir)
-    trainer.interploate(train_loader)
+    for idx in range(10):
+        trainer.interploate(train_loader, idx)
     print("interploate done:")
 
 

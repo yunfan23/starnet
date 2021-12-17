@@ -1,0 +1,2 @@
+CUDA_VISIBLE_DEVICES=0 \
+python train.py configs/debug/airplane_gen_add.yaml --pretrained trained/airplane_ae_trained_29apr21.pt

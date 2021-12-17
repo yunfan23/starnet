@@ -38,7 +38,7 @@ cate_to_synsetid = {v: k for k, v in synsetid_to_cate.items()}
 class ShapeNetCore(Dataset):
 
     GRAVITATIONAL_AXIS = 1
-    
+
     def __init__(self, path, cates, split, scale_mode, transform=None):
         super().__init__()
         assert isinstance(cates, list), '`cates` must be a list of cate names.'
@@ -95,7 +95,7 @@ class ShapeNetCore(Dataset):
                 cate_name = synsetid_to_cate[synsetid]
                 for j, pc in enumerate(f[synsetid][self.split]):
                     yield torch.from_numpy(pc), j, cate_name
-        
+
         with h5py.File(self.path, mode='r') as f:
             for pc, pc_id, cate_name in _enumerate_pointclouds(f):
 
@@ -147,6 +147,7 @@ class ShapeNetCore(Dataset):
             data = self.transform(data)
         return data
 
+
 def get_datasets(cfg, args):
     tr_dset = ShapeNetCore(
         path=cfg.data_dir,
@@ -164,22 +165,23 @@ def get_datasets(cfg, args):
     )
     return tr_dset, val_dset
 
+
 def get_data_loaders(cfg, args):
     tr_dataset, te_dataset = get_datasets(cfg, args)
     train_loader = data.DataLoader(
-        dataset=tr_dataset, 
+        dataset=tr_dataset,
         batch_size=cfg.batch_size,
-        shuffle=True, 
-        num_workers=cfg.num_workers, 
+        shuffle=True,
+        num_workers=cfg.num_workers,
         drop_last=True,
-        worker_init_fn=init_np_seed, 
+        worker_init_fn=init_np_seed,
         pin_memory=True
     )
     test_loader = data.DataLoader(
-        dataset=te_dataset, 
+        dataset=te_dataset,
         batch_size=cfg.batch_size,
-        shuffle=False, 
-        num_workers=cfg.num_workers, 
+        shuffle=False,
+        num_workers=cfg.num_workers,
         drop_last=False,
         worker_init_fn=init_np_seed
     )
@@ -189,6 +191,7 @@ def get_data_loaders(cfg, args):
         'train_loader': train_loader,
     }
     return loaders
+
 
 def init_np_seed(worker_id):
     seed = torch.initial_seed()

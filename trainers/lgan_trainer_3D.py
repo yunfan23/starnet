@@ -13,7 +13,7 @@ from Frechet.FPD import calculate_fpd
 
 from trainers.ae_sparenet_trainer_3D import Trainer as BaseTrainer
 from trainers.utils.gan_losses import dis_loss, gen_loss, gradient_penalty, gradient_penalty_orig
-from trainers.utils.utils import (count_parameters, get_opt,
+from trainers.utils.utils import (count_parameters, get_opt, pc_normalize,
                                   normalize_point_clouds)
 from trainers.utils.vis_utils import (visualize_point_clouds_3d,
                                       visualize_point_clouds_img)
@@ -233,7 +233,7 @@ class Trainer(BaseTrainer):
             with open(output_file, "wb") as f:
                 np.save(f, imgs.cpu().numpy())
 
-    def validate(self, test_loader, epoch, evaluation=False, smp=None, ref=None, *args, **kwargs):
+    def validate(self, test_loader, idx, evaluation=False, smp=None, ref=None, *args, **kwargs):
         all_res = {}
         max_gen_vali_shape = int(getattr(self.cfg.trainer, "max_gen_validate_shapes", 100))
 
@@ -255,14 +255,15 @@ class Trainer(BaseTrainer):
                     self.gen.eval()
                     self.decoder.eval()
                     z = torch.randn((max_gen_vali_shape, 128)).cuda()
-                    w = self.gen(z=z)
+                    # w = self.gen(z=z)
+                    w = z
                     pcs = self.decoder(w)
                     all_smp.append(pcs)
             smp = torch.cat(all_smp, dim=0)[:ref_num]
             smp = normalize_point_clouds(smp)
             ref = normalize_point_clouds(ref)
-            np.save(os.path.join(self.cfg.save_dir, 'val', f'smp_{epoch}.npy'), smp.detach().cpu().numpy())
-            np.save(os.path.join(self.cfg.save_dir, 'val', f'ref_{epoch}.npy'), ref.cpu().numpy())
+            np.save(os.path.join(self.cfg.save_dir, 'val', f'smp_{idx}.npy'), smp.detach().cpu().numpy())
+            np.save(os.path.join(self.cfg.save_dir, 'val', f'ref_{idx}.npy'), ref.cpu().numpy())
             # sub_sampled = random.sample(range(ref.size(0)), 200)
             # smp = smp[sub_sampled, ...].contiguous()
             # ref = ref[sub_sampled, ...].contiguous()
@@ -277,14 +278,17 @@ class Trainer(BaseTrainer):
             smp = torch.from_numpy(smp).cuda()
             ref = torch.from_numpy(ref).cuda()
         all_res.update({"JSD": jsd})
-        print(f"Epoch {epoch}, JSD: {jsd}")
+        print(f"jsd: {jsd}")
 
         # pdb.set_trace()
         if evaluation:
+            # ref_ids = torch.randint(ref_num, (100,))
+            # smp_ids = torch.randint(ref_num, (150,))
+            # smp_ids = torch.randint(ref_num, (100,))
+            # smp = smp[smp_ids]
+            # ref = ref[ref_ids]
             gen_res = compute_all_metrics(smp, ref, batch_size=int(getattr(self.cfg.trainer, "val_metrics_batch_size", 100)), accelerated_cd=True)
             all_res.update({("val/gen/%s" % k): (v if isinstance(v, float) else v.item()) for k, v in gen_res.items()})
-        print("Validation Done")
-
         return all_res
 
 
@@ -299,23 +303,24 @@ class Trainer(BaseTrainer):
                 pcs = self.decoder(w)
                 all_smp.append(pcs)
 
-            for data in tqdm.tqdm(dataloader, desc="Data"):
-                inp_pts = data['tr_points'].cuda()
-                all_ref.append(inp_pts)
+            # for data in tqdm.tqdm(dataloader, desc="Data"):
+            #     inp_pts = data['tr_points'].cuda()
+            #     all_ref.append(inp_pts)
 
             smp = torch.cat(all_smp, dim=0)
-            ref = torch.cat(all_ref, dim=0)
+            # print(smp.max())
+            # ref = torch.cat(all_ref, dim=0)
             # import pdb; pdb.set_trace()
-            # smp = (smp) / (smp.max(dim=1, keepdim=True)[0] - smp.min(dim=1, keepdim=True)[0]) / 2
+            smp = (smp) / (smp.max(dim=1, keepdim=True)[0] - smp.min(dim=1, keepdim=True)[0]) / 2
             # ref = (ref) / (ref.max(dim=1, keepdim=True)[0] - ref.min(dim=1, keepdim=True)[0]) / 2
-            # smp = pc_normalize(smp)
-            # ref = pc_normalize(ref)
+            # smp = pc_normalize(smp) / 2
+            # ref = pc_normalize(ref) / 2
             # smp = (smp - smp.min(dim=1, keepdim=True)[0]) / (smp.max(dim=1, keepdim=True)[0] - smp.min(dim=1, keepdim=True)[0]) / 2
             # ref = (ref - ref.min(dim=1, keepdim=True)[0]) / (ref.max(dim=1, keepdim=True)[0] - ref.min(dim=1, keepdim=True)[0]) / 2
             # smp = (smp) / (smp.max() - smp.min()) / 2
             # ref = (ref) / (ref.max() - ref.min()) / 2
             # smp = (smp - smp.min()) / (smp.max() - smp.min()) / 4
             # ref = (ref - ref.min()) / (ref.max() - ref.min()) / 4
-            fpd = calculate_fpd(smp, ref, batch_size=100, dims=1808)
-            # print(f'Frechet Pointcloud Distance {fpd:.3f}')
+            fpd = calculate_fpd(smp, statistic_save_path = './Frechet/pre_statistics_plane.npz', batch_size=100, dims=1808)
+            print(f'Frechet Pointcloud Distance {fpd:.3f}')
             return fpd

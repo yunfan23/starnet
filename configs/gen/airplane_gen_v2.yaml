@@ -43,7 +43,7 @@ trainer:
     weight_decay: 0.
 
   # For GAN
-  ae_pretrained: '/home/yunfan/workarea/stylegan_pcgen.v1/pretrained/recon/airplane_v3_2021-Sep-03-13-08-15/checkpoints/epoch_450_iters_0.pt'
+  ae_pretrained: '/home/yunfan/workarea/style-aware_pcgen.v1/pretrained/recon/airplane_v3_2021-Sep-03-13-08-15/checkpoints/epoch_450_iters_0.pt'
   gan_only: True
   gan_loss_type: "wgan"
   # Gradient penalty
@@ -91,7 +91,7 @@ models:
       - 128
     prior: gaussian
     gaussian_scale: 1.
-    use_bn: False
+    # use_bn: False
     use_bn: True
     # output_bn: False
   dis:

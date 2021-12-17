@@ -201,58 +201,58 @@ class Trainer(BaseTrainer):
             self.opt_dis.load_state_dict(ckpt['opt_dis'])
         return start_epoch
 
-    def validate(self, test_loader, epoch, *args, **kwargs):
+    def validate(self, test_loader, idx, evaluation=False, smp=None, ref=None, *args, **kwargs):
         all_res = {}
+        max_gen_vali_shape = int(getattr(self.cfg.trainer, "max_gen_validate_shapes", 100))
 
-        if eval_generation:
-            with torch.no_grad():
-                print("Style-GAN validation:")
-                all_ref, all_smp = [], []
-                for data in tqdm.tqdm(test_loader):
-                    ref_pts = data['te_points'].cuda()
-                    inp_pts = data['tr_points'].cuda()
-                    with torch.no_grad():
-                        self.gen.eval()
-                        # put noise in cuda device
-                        outputs = self.gen(self.get_prior(ref_pts.size(0)).cuda())
-                        smp_pts = outputs.transpose(1, 2).contiguous()
-                    all_smp.append(smp_pts.view(ref_pts.size(0), ref_pts.size(1), ref_pts.size(2)))
-                    all_ref.append(ref_pts.view(ref_pts.size(0), ref_pts.size(1), ref_pts.size(2)))
+        # calculate fpd score
+        # fpd = self.validate_fpd(test_loader)
+        # all_res = {"FPD": fpd}
 
-                smp = torch.cat(all_smp, dim=0)
-                np.save(os.path.join(self.cfg.save_dir, 'val','smp_ep%d.npy' % epoch), smp.detach().cpu().numpy())
-                ref = torch.cat(all_ref, dim=0)
+        if smp is None and ref is None:
+            all_ref, all_smp = [], []
+            # reference point clouds
+            for data in tqdm.tqdm(test_loader, 'Dataset'):
+                ref_pts = data['tr_points']
+                all_ref.append(ref_pts)
+            ref = torch.cat(all_ref, dim=0).cuda()
 
-                # Sample CD/EMD
-                # step 1: subsample shapes
-                max_gen_vali_shape = int(getattr(self.cfg.trainer, "max_gen_validate_shapes", int(smp.size(0))))
-                sub_sampled = random.sample(range(smp.size(0)), min(smp.size(0), max_gen_vali_shape))
-                smp_sub = smp[sub_sampled, ...].contiguous()
-                ref_sub = ref[sub_sampled, ...].contiguous()
+            ref_num = ref.size(0)
+            for i in tqdm.tqdm(range(0, math.ceil(ref_num / max_gen_vali_shape)), 'Generate'):
+                with torch.no_grad():
+                    self.gen.eval()
+                    self.dec.eval()
+                    z = torch.randn((max_gen_vali_shape, 128)).cuda()
+                    w = self.gen(z=z)
+                    pcs = self.dec(w)
+                    all_smp.append(pcs)
+            smp = torch.cat(all_smp, dim=0)[:ref_num]
+            smp = normalize_point_clouds(smp)
+            ref = normalize_point_clouds(ref)
+            np.save(os.path.join(self.cfg.save_dir, 'val', f'smp_{idx}.npy'), smp.detach().cpu().numpy())
+            np.save(os.path.join(self.cfg.save_dir, 'val', f'ref_{idx}.npy'), ref.cpu().numpy())
+            # sub_sampled = random.sample(range(ref.size(0)), 200)
+            # smp = smp[sub_sampled, ...].contiguous()
+            # ref = ref[sub_sampled, ...].contiguous()
+            print(f"Sample Shape {smp.shape}")
+            print(f"Reference Shape {ref.shape}")
 
-                gen_res = compute_all_metrics(
-                    smp_sub, ref_sub,
-                    batch_size=int(getattr(self.cfg.trainer, "val_metrics_batch_size", 100)), accelerated_cd=True)
-                all_res = {("val/gen/%s" % k): (v if isinstance(v, float) else v.item())
-                    for k, v in gen_res.items()}
-                print("Validation Sample (unit) Epoch:%d " % epoch, gen_res)
-
-        # Call super class validation
-        if getattr(self.cfg.trainer, "validate_recon", False):
-            all_res.update(super().validate(
-                test_loader, epoch, *args, **kwargs))
-
-        return all_res
-
-    # get and save the same prior for shape generation
-    def get_prior(self, bs, dim=128):
-        truncate_std = getattr(self.cfg.models, "truncate_std", 2.)
-        gaussian_scale = getattr(self.cfg.models, "gaussian_scale", 1.)
-        if self.prior_type == "truncate_gaussian":
-            noise = (torch.randn(bs, self.cfg.models.gen.z_dim) * gaussian_scale).cuda()
-            noise = truncated_normal(noise, 0, gaussian_scale, truncate_std)
-            return noise
-        elif self.prior_type == "gaussian":
-            return torch.randn(bs, self.cfg.models.gen.z_dim) * gaussian_scale
+            jsd = jsd_between_point_cloud_sets(smp.cpu().numpy(), ref.cpu().numpy())
         else:
-            raise NotImplementedError("Invalid prior type:%s" % self.prior_type)
+            smp = np.load(smp)
+            ref = np.load(ref)
+            jsd = jsd_between_point_cloud_sets(smp, ref)
+            smp = torch.from_numpy(smp).cuda()
+            ref = torch.from_numpy(ref).cuda()
+        all_res.update({"JSD": jsd})
+
+        # pdb.set_trace()
+        if evaluation:
+            # ref_ids = torch.randint(ref_num, (100,))
+            # smp_ids = torch.randint(ref_num, (150,))
+            # smp_ids = torch.randint(ref_num, (100,))
+            # smp = smp[smp_ids]
+            # ref = ref[ref_ids]
+            gen_res = compute_all_metrics(smp, ref, batch_size=int(getattr(self.cfg.trainer, "val_metrics_batch_size", 100)), accelerated_cd=True)
+            all_res.update({("val/gen/%s" % k): (v if isinstance(v, float) else v.item()) for k, v in gen_res.items()})
+        return all_res

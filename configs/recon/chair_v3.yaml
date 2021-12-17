@@ -2,6 +2,7 @@ data:
   type: datasets.dataset
   num_workers: 16
   cates: ['chair']
+  # data_dir: data/shapenet_v1.hdf5
   data_dir: data/shapenet.hdf5
   batch_size: 128
 
@@ -13,9 +14,9 @@ viz:
 
 trainer:
   type: trainers.ae_sparenet_trainer_3D
-  epochs: 551
+  epochs: 1001
   val_metrics_batch_size: 400
-  cd_weight: 0.
+  cd_weight: 5.
   seed: 100
   opt_dec:
     type: 'adam'

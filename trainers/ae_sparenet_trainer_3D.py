@@ -1,7 +1,9 @@
 import glob
 import importlib
 import os
+import random
 
+from numpy.core.fromnumeric import var
 import evaluation.emd.emd_module as emd
 import numpy as np
 import torch
@@ -437,38 +439,34 @@ class Trainer(BaseTrainer):
             samples = self.decoder(z)
             return samples
 
-    def interploate(self, dataloader):
-        print(self.cfg.data.cates[0])
+    def interploate(self, dataloader, idx=0):
+        # print(self.cfg.data.cates[0])
         self.encoder.eval()
         self.decoder.eval()
         cate = self.cfg.data.cates[0]
         data = next(iter(dataloader))
         np.random.seed(901)
-        print(data["tr_points"].size())
-        # (src_idx, tgt_idx) = np.random.choice(data["tr_points"].size(0), 2)
+        # print(data["tr_points"].size())
+        randvar = lambda: random.randint(0, data["tr_points"].size(0))
+        (src_idx, tgt_idx) = (randvar(), randvar())
         # (src_idx, tgt_idx) = (5, 21)
-        (src_idx, tgt_idx) = (2, 17)
+        # (src_idx, tgt_idx) = (2, 17)
         print(f"source {src_idx}, target {tgt_idx}")
 
         with torch.no_grad():
             src_inp = data["tr_points"][src_idx]
             tgt_inp = data["tr_points"][tgt_idx]
             inps = torch.cat((src_inp.unsqueeze(0), tgt_inp.unsqueeze(0)), dim=0)
-            print(inps.size())
             z, _ = self.encoder(inps.cuda())
-            print(z.shape)
             z_lerps = []
-            # import pdb; pdb.set_trace()
-            # for w in np.linspace(-0.5, 1.5, 21):
-            for w in np.linspace(0.0, 1.0, 6):
+            for w in np.linspace(-0.5, 1.5, 21):
+            # for w in np.linspace(0.0, 1.0, 6):
                 z_lerps.append(z[0].lerp(z[1], w).unsqueeze(0))
             z_lerps = torch.cat(z_lerps, dim=0)
-            print(z_lerps.shape)
             samples = self.decoder(z_lerps)
-            # import pdb; pdb.set_trace()
             os.makedirs("results", exist_ok=True)
-            output_filename = f"./results/{cate}_lerp.npy"
+            output_filename = f"./results/{cate}_{idx}_lerp.npy"
             data = np.concatenate((samples.cpu().numpy(), inps.cpu().numpy()), axis=0)
             with open(output_filename, 'wb') as f:
                 np.save(f, data)
-            visualize_point_clouds_img(data, data, bs=0, cate=cate)
+            visualize_point_clouds_img(data, data, bs=idx, cate=cate)

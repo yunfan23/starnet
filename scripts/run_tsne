@@ -1,7 +1,0 @@
-#!/bin/bash
-# python -m pdb -c continue \
-python \
-tsne.py \
-configs/recon/airplane/airplane_recon_style.yaml \
---pretrained \
-./logs/airplane_recon_style_2021-May-25-14-44-00/checkpoints/epoch_3900_iters_85821.pt
