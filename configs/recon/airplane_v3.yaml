@@ -1,9 +1,11 @@
 data:
   type: datasets.dataset
-  num_workers: 16
+  num_workers: 8
   cates: ['airplane']
   data_dir: data/shapenet.hdf5
-  batch_size: 128
+  batch_size: 32
+  # scale_mode: shape_unit
+  scale_mode: shape_bbox
 
 viz:
   log_freq: 10
@@ -14,8 +16,8 @@ viz:
 trainer:
   type: trainers.ae_sparenet_trainer_3D
   epochs: 551
-  val_metrics_batch_size: 400
-  cd_weight: 25.
+  # val_metrics_batch_size: 400
+  cd_weight: 1.
   seed: 100
   opt_dec:
     type: 'adam'

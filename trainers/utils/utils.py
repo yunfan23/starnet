@@ -1,7 +1,7 @@
 import pdb
 import random
 import sys
-
+import tqdm
 import matplotlib
 import matplotlib.cm as cm
 import matplotlib.pyplot as plt
@@ -454,10 +454,7 @@ def farthest_point_sample(xyz, npoint):
     return centroids
 
 
-def normalize_point_clouds(pcs, mode="shape_bbox"):
-    import tqdm
-
-    # for i in tqdm.tqdm(range(pcs.size(0)), desc='Normalize'):
+def normalize_point_clouds(pcs, mode):
     for i in range(pcs.size(0)):
         pc = pcs[i]
         if mode == 'shape_unit':
@@ -468,9 +465,6 @@ def normalize_point_clouds(pcs, mode="shape_bbox"):
             pc_min, _ = pc.min(dim=0, keepdim=True) # (1, 3)
             shift = ((pc_min + pc_max) / 2).view(1, 3)
             scale = (pc_max - pc_min).max().reshape(1, 1) / 2
-        else:
-            shift = 0.
-            scale = 1.
         pc = (pc - shift) / scale
         pcs[i] = pc
     return pcs
@@ -542,3 +536,7 @@ def to_precision(x, p=4):
 
 def count_parameters(network):
     return sum(p.numel() for p in network.parameters())
+
+
+def save_npy(data, filename):
+    np.save(filename, data)

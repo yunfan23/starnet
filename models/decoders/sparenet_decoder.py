@@ -23,6 +23,7 @@ class Decoder(nn.Module):
         outs = outs.transpose(1, 2).contiguous()
         return outs
 
+
 class AdaInPointGenCon(nn.Module):
     def __init__(
         self,
@@ -49,6 +50,7 @@ class AdaInPointGenCon(nn.Module):
         assign_adain_params(adain_params, self.dec)
         num_styles = get_num_adain_params(self.dec)
         return self.dec(content)
+
 
 class SELayer1D(nn.Module):
     def __init__(self, channel, reduction=16):

@@ -22,7 +22,7 @@ viz:
 
 trainer:
   type: trainers.stylegan_trainer_v2
-  ae_pretrained: '/home/yunfan/workarea/style-aware_pcgen.v1/pretrained/recon/airplane_v3_2021-Sep-03-13-08-15/checkpoints/epoch_450_iters_0.pt'
+  ae_pretrained: '/home/yunfan/Star-Net/pretrained/airplane/checkpoints/epoch_450_iters_0.pt'
   epochs: 1001
   seed: 100
 

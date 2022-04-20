@@ -147,7 +147,7 @@ class Trainer(BaseTrainer):
             res = self.update_gan(data)
         return res
 
-    def log_train(self, train_info, writer=None, step=None, epoch=None, visualize=False, **kwargs):
+    def log_train(self, train_info, dataset_loader=None, writer=None, step=None, epoch=None, visualize=False, **kwargs):
         # Log training information to tensorboard
         train_info = {k: (v.cpu() if not isinstance(v, float) else v) for k, v in train_info.items()}
         for k, v in train_info.items():

@@ -1,3 +1,0 @@
-# python recon.py configs/recon/car_sparenet.yaml --pretrained logs/car_sparenet_2021-Aug-08-23-44-53/checkpoints/epoch_4900_iters_0.pt
-python recon.py configs/recon/chair_sparenet.yaml --pretrained ./pretrained/pretrained_16aug21/recon/chair_recon.pt
-# python recon.py configs/recon/airplane_sparenet.yaml --pretrained logs/airplane_sparenet_2021-Aug-08-23-45-00/checkpoints/epoch_4800_iters_0.pt

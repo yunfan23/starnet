@@ -1,1 +1,0 @@
-CUDA_VISIBLE_DEVICES=1 python train.py configs/finetune/airplane_gen_finetune.yaml --resume --pretrained pretrained/gen/airplane_gen_v2_2021-Sep-08-16-35-19/checkpoints/epoch_4200_iters_0.pt

@@ -1,23 +1,18 @@
 data:
-  type: datasets.pointflow_datasets_v2
-  dataset_type: shapenet15k
+  type: datasets.dataset
   num_workers: 16
   cates: ['airplane']
-  tr_max_sample_points: 2048
-  te_max_sample_points: 2048
-  data_dir: data/ShapeNetCore.v2.PC15k
-  batch_size: 512
-  dataset_scale: 1
-  normalize_per_shape: False
-  normalize_std_per_axis: False
-  recenter_per_shape: True
-  fps: True
+  data_dir: data/shapenet.hdf5
+  batch_size: 128
+  scale_mode: shape_bbox
+  # scale_mode: shape_unit
+
 
 viz:
   save_freq: 100
-  log_freq: 100
+  log_freq: 1
   viz_freq: 400
-  val_freq: 100
+  val_freq: -1
 
 trainer:
   # type: trainers.lgan_trainer_3D_v2
@@ -25,7 +20,7 @@ trainer:
   epochs: 10001
   seed: 100
   val_metrics_batch_size: 400
-  max_gen_validate_shapes: 607
+  max_gen_validate_shapes: 50
 
   # For autoencoding
   validate_recon: True
@@ -43,7 +38,8 @@ trainer:
     weight_decay: 0.
 
   # For GAN
-  ae_pretrained: '/home/yunfan/workarea/style-aware_pcgen.v1/pretrained/recon/airplane_v3_2021-Sep-03-13-08-15/checkpoints/epoch_450_iters_0.pt'
+  # ae_pretrained: '/home/yunfan/workarea/Star-Net/pretrained/airplane_v3_2022-Mar-17-17-32-32/checkpoints/epoch_450_iters_0.pt'
+  ae_pretrained: '/home/yunfan/workarea/Star-Net/logs/airplane_v3_2022-Mar-18-15-55-03/checkpoints/epoch_450_iters_0.pt'
   gan_only: True
   gan_loss_type: "wgan"
   # Gradient penalty
@@ -84,16 +80,16 @@ models:
     inp_dim: 128
     out_dim: 128
     dims:
-      # - 256
-      # - 256
-      - 128
-      - 128
-      - 128
+      - 256
+      - 256
+      # - 128
+      # - 128
+      # - 128
     prior: gaussian
     gaussian_scale: 1.
-    # use_bn: False
-    use_bn: True
-    # output_bn: False
+    use_bn: False
+    # use_bn: True
+    output_bn: False
   dis:
     type: models.discriminators.mlp_dis
     inp_dim: 128

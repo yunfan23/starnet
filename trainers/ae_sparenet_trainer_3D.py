@@ -9,12 +9,12 @@ import numpy as np
 import torch
 import torch.nn as nn
 import tqdm
-from evaluation.chamfer_distance import ChamferDistanceMean
+# from evaluation.chamfer_distance import ChamferDistanceMean
 from evaluation.evaluation_metrics import EMD_CD
 from evaluation.StructuralLosses.nn_distance import nn_distance  # noqa
 
 from trainers.base_trainer import BaseTrainer
-from trainers.utils.utils import (count_parameters, get_opt,
+from trainers.utils.utils import (count_parameters, get_opt, save_npy,
                                   normalize_point_clouds, set_random_seed,
                                   visualize_point_clouds_3d)
 from trainers.utils.vis_utils import (visualize_point_clouds_3d,
@@ -55,12 +55,13 @@ class Trainer(BaseTrainer):
         set_random_seed(getattr(self.cfg.trainer, "seed", 666))
 
         self.loss_emd = emd.emdModule().cuda()
-        self.loss_cd = ChamferDistanceMean().cuda()
+        # self.loss_cd = ChamferDistanceMean().cuda()
 
         # The networks
         decoder_lib = importlib.import_module(cfg.models.decoder.type)
         self.decoder = decoder_lib.Decoder(cfg.models.decoder)
         self.decoder.cuda()
+        # self.decoder = nn.DataParallel(self.decoder)
         print("Decoder:")
         print(self.decoder)
         print(f"Decoder : {count_parameters(self.decoder)}")
@@ -68,6 +69,7 @@ class Trainer(BaseTrainer):
         encoder_lib = importlib.import_module(cfg.models.encoder.type)
         self.encoder = encoder_lib.Encoder(cfg.models.encoder)
         self.encoder.cuda()
+        # self.encoder = nn.DataParallel(self.encoder)
         print("Encoder:")
         print(self.encoder)
         print(f"Encoder : {count_parameters(self.encoder)}")
@@ -101,7 +103,7 @@ class Trainer(BaseTrainer):
                 writer.add_scalar('train/opt_enc_lr', self.scheduler_enc.get_lr()[0], epoch)
 
     def loss_fn(self, recon, gt, weight=1.):
-        loss_cd = self.loss_cd(recon, gt).mean()
+        # loss_cd = self.loss_cd(recon, gt).mean()
         dl, dr = nn_distance(recon, gt)
         loss_cd = dl.mean() + dr.mean()
 
@@ -130,7 +132,7 @@ class Trainer(BaseTrainer):
                 self.opt_enc.zero_grad()
                 self.opt_dec.zero_grad()
 
-            tr_pts = data['tr_points'].cuda()
+            tr_pts = data['pointcloud'].cuda()
             # import pdb; pdb.set_trace()
             bs = tr_pts.size(0)
             tr_pts.requires_grad_(True)
@@ -176,7 +178,7 @@ class Trainer(BaseTrainer):
             with torch.no_grad():
                 print("Visualize: Epoch %s" % epoch)
                 data = next(iter(train_data))
-                inp = data['tr_points']
+                inp = data['pointcloud']
                 num_vis = min(getattr(self.cfg.viz, "num_vis_samples", 5), inp.size(0))
                 rec = self.reconstruct(inp[:num_vis].cuda(), num_points=inp.size(1))
                 all_imgs = []
@@ -191,26 +193,19 @@ class Trainer(BaseTrainer):
         print("Validation (reconstruction):")
         all_rec_denorm, all_inp_denorm = [], []
         for data in tqdm.tqdm(data_loader):
-            # ref_pts = data['te_points'].cuda()
-            inp_pts = data['tr_points'].cuda()
-            m = data['mean'].cuda()
-            std = data['std'].cuda()
+            # import pdb; pdb.set_trace()
+            inp_pts = data['pointcloud'].cuda()
+            m = data['shift'].cuda()
+            std = data['scale'].cuda()
             rec_pts = self.reconstruct(inp_pts, num_points=inp_pts.size(1))
 
             # denormalize
-            inp_pts_denorm = inp_pts.clone() * std + m
-            # ref_pts_denorm = ref_pts.clone() * std + m
+            inp_pts_denorm = inp_pts * std + m
             rec_pts_denorm = rec_pts * std + m
 
-            # all_inp.append(inp_pts)
             all_inp_denorm.append(inp_pts_denorm.view(*inp_pts.size()))
-            # all_ref_denorm.append(ref_pts_denorm.view(*ref_pts.size()))
             all_rec_denorm.append(rec_pts_denorm.view(*rec_pts.size()))
-            # all_ref_denorm.append(ref_pts_denorm)
 
-        # inp = torch.cat(all_inp, dim=0)
-        # rec = torch.cat(all_rec, dim=0)
-        # ref_denorm = torch.cat(all_ref_denorm, dim=0)
         inp_denorm = torch.cat(all_inp_denorm, dim=0)
         rec_denorm = torch.cat(all_rec_denorm, dim=0)
 
@@ -228,11 +223,11 @@ class Trainer(BaseTrainer):
 
         # Reconstruction CD/EMD
         all_res = {}
-        val_bs = getattr(self.cfg.trainer, "val_metrics_batch_size", 100)
+        val_bs = getattr(self.cfg.trainer, "val_metrics_batch_size", 64)
         rec_res = EMD_CD(rec_denorm, inp_denorm, val_bs)
         rec_res = {("val/rec/%s" % k): (v if isinstance(v, float) else v.item()) for k, v in rec_res.items()}
         all_res.update(rec_res)
-        print("Validation Recon (denormalize) Epoch:%d " % epoch, rec_res)
+        print("Validation Recon, Epoch:%d " % epoch, rec_res)
 
         return all_res
 
@@ -267,7 +262,7 @@ class Trainer(BaseTrainer):
             with torch.no_grad():
                 self.encoder.eval()
                 self.decoder.eval()
-                inps = data["tr_points"].cuda()
+                inps = data["pointcloud"].cuda()
                 z, _ = self.encoder(inps)
                 samples = self.decoder(z)
                 # import pdb; pdb.set_trace()
@@ -286,7 +281,7 @@ class Trainer(BaseTrainer):
         os.makedirs(f"./results/{cate}", exist_ok=True)
         data = next(iter(dataloader))
         with torch.no_grad():
-            inps = data["tr_points"][:num_sample].cuda()
+            inps = data["pointcloud"][:num_sample].cuda()
             sub_smp = np.random.choice(inps.shape[1], 256)
             sub_inps = inps[:, sub_smp,:]
             z, _ = self.encoder(sub_inps)
@@ -447,15 +442,15 @@ class Trainer(BaseTrainer):
         data = next(iter(dataloader))
         np.random.seed(901)
         # print(data["tr_points"].size())
-        randvar = lambda: random.randint(0, data["tr_points"].size(0))
+        randvar = lambda: random.randint(0, data["pointcloud"].size(0))
         (src_idx, tgt_idx) = (randvar(), randvar())
         # (src_idx, tgt_idx) = (5, 21)
         # (src_idx, tgt_idx) = (2, 17)
         print(f"source {src_idx}, target {tgt_idx}")
 
         with torch.no_grad():
-            src_inp = data["tr_points"][src_idx]
-            tgt_inp = data["tr_points"][tgt_idx]
+            src_inp = data["pointcloud"][src_idx]
+            tgt_inp = data["pointcloud"][tgt_idx]
             inps = torch.cat((src_inp.unsqueeze(0), tgt_inp.unsqueeze(0)), dim=0)
             z, _ = self.encoder(inps.cuda())
             z_lerps = []
@@ -470,3 +465,11 @@ class Trainer(BaseTrainer):
             with open(output_filename, 'wb') as f:
                 np.save(f, data)
             visualize_point_clouds_img(data, data, bs=idx, cate=cate)
+
+
+    def get_feat(self, inps, num_points=2048):
+        with torch.no_grad():
+            self.encoder.eval()
+            self.decoder.eval()
+            z, _ = self.encoder(inps)
+            return z

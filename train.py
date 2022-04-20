@@ -123,14 +123,14 @@ def main_worker(cfg, args):
         duration = time.time() - start_time
 
         if epoch % int(cfg.viz.log_freq) == 0 and int(cfg.viz.log_freq) > 0:
-            trainer.log_train(logs_info, writer=writer, epoch=epoch, visualize=visualize)
+            trainer.log_train(logs_info, test_loader, writer=writer, epoch=epoch, visualize=visualize)
 
         if epoch % int(cfg.viz.save_freq) == 0 and int(cfg.viz.save_freq) > 0:
             trainer.save(epoch=epoch, step=step)
 
-        if epoch % int(cfg.viz.val_freq) == 0:
-        # if epoch % int(cfg.viz.val_freq) == 0 and int(cfg.viz.val_freq) > 0:
-            val_info = trainer.validate(test_loader, idx=epoch)
+        # if epoch % int(cfg.viz.val_freq) == 0:
+        if epoch % int(cfg.viz.val_freq) == 0 and int(cfg.viz.val_freq) > 0:
+            val_info = trainer.validate(test_loader, epoch)
             trainer.log_val(val_info, writer=writer, epoch=epoch)
 
         # pdb.set_trace()

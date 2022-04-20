@@ -1,13 +1,12 @@
 import os
 import random
 from copy import copy
-
-import h5py
-import numpy as np
 import torch
-from torch.utils import data
-from torch.utils.data import Dataset
+from torch.utils.data import Dataset, DataLoader
+import numpy as np
+import h5py
 from tqdm.auto import tqdm
+
 
 synsetid_to_cate = {
     '02691156': 'airplane', '02773838': 'bag', '02801938': 'basket',
@@ -90,6 +89,7 @@ class ShapeNetCore(Dataset):
         return self.stats
 
     def load(self):
+
         def _enumerate_pointclouds(f):
             for synsetid in self.cate_synsetids:
                 cate_name = synsetid_to_cate[synsetid]
@@ -124,13 +124,9 @@ class ShapeNetCore(Dataset):
 
                 self.pointclouds.append({
                     'pointcloud': pc,
-                    'tr_points': pc,
-                    'te_points': pc,
                     'cate': cate_name,
                     'id': pc_id,
                     'shift': shift,
-                    'mean': shift,
-                    'std': scale,
                     'scale': scale
                 })
 
@@ -153,22 +149,20 @@ def get_datasets(cfg, args):
         path=cfg.data_dir,
         cates=cfg.cates,
         split='train',
-        # scale_mode="shape_unit"
-        scale_mode="shape_bbox"
+        scale_mode=cfg.scale_mode
     )
     val_dset = ShapeNetCore(
         path=cfg.data_dir,
         cates=cfg.cates,
-        split='val',
-        # scale_mode="shape_unit"
-        scale_mode="shape_bbox"
+        split='test',
+        scale_mode=cfg.scale_mode
     )
     return tr_dset, val_dset
 
 
 def get_data_loaders(cfg, args):
     tr_dataset, te_dataset = get_datasets(cfg, args)
-    train_loader = data.DataLoader(
+    train_loader = DataLoader(
         dataset=tr_dataset,
         batch_size=cfg.batch_size,
         shuffle=True,
@@ -177,13 +171,13 @@ def get_data_loaders(cfg, args):
         worker_init_fn=init_np_seed,
         pin_memory=True
     )
-    test_loader = data.DataLoader(
+    test_loader = DataLoader(
         dataset=te_dataset,
         batch_size=cfg.batch_size,
-        shuffle=False,
-        num_workers=cfg.num_workers,
-        drop_last=False,
-        worker_init_fn=init_np_seed
+        # shuffle=False,
+        # num_workers=cfg.num_workers,
+        # drop_last=False,
+        # worker_init_fn=init_np_seed
     )
 
     loaders = {

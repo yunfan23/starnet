@@ -71,36 +71,15 @@ def main_worker(cfg, args):
     writer = SummaryWriter(logdir=cfg.log_name)
     data_lib = importlib.import_module(cfg.data.type)
     loaders = data_lib.get_data_loaders(cfg.data, args)
-    train_loader = loaders['train_loader']
     test_loader = loaders['test_loader']
     trainer_lib = importlib.import_module(cfg.trainer.type)
     trainer = trainer_lib.Trainer(cfg, args)
-
-    # if args.distributed:  # Multiple processes, single GPU per process
-    #     def wrapper(m):
-    #         return nn.DataParallel(m)
-    #     trainer.multi_gpu_wrapper(wrapper)
     trainer.resume(args.pretrained)
     idx = 0
     print(cfg.save_dir)
-    # smp = "/home/yunfan/workarea/style-aware_pcgen.v1/logs/airplane_gen_v2_val_2021-Nov-09-12-43-44/val/smp_84.npy"
-    # ref = "/home/yunfan/workarea/style-aware_pcgen.v1/logs/airplane_gen_v2_val_2021-Nov-09-12-43-44/val/ref_84.npy"
-    # smp = "/home/yunfan/workarea/style-aware_pcgen.v1/logs/chair_gen_v2_val_2021-Nov-09-20-53-34/val/smp_0.npy"
-    # ref = "/home/yunfan/workarea/style-aware_pcgen.v1/logs/chair_gen_v2_val_2021-Nov-09-20-53-34/val/ref_0.npy"
-    # val_info = trainer.validate(test_loader, idx, evaluation=True, smp=smp, ref=ref)
-    # pprint(val_info)
-    # for idx in tqdm.tqdm(range(100), desc="idx"):
-    # smp = '/home/yunfan/workarea/style-aware_pcgen.v1/logs/airplane_gen_v2_val_2021-Nov-12-16-53-54/val/smp_0.npy'
-    # smp = './scratch/smp.npy'
-    # ref = '/home/yunfan/workarea/style-aware_pcgen.v1/logs/airplane_gen_v2_val_2021-Nov-12-16-53-54/val/ref_0.npy'
-    for idx in tqdm.tqdm(range(1), desc="idx"):
+    for idx in range(1):
         val_info = trainer.validate(test_loader, idx, evaluation=True)
-        # val_info = trainer.validate(test_loader, epoch=-1, evaluation=True)
-        # val_info = trainer.validate(test_loader, idx, evaluation=False, smp=smp, ref=ref)
-        # val_info = trainer.validate_fpd(test_loader, epoch=-1)
-        # val_info = trainer.validate_fpd(train_loader, epoch=-1)
-        # pprint(idx)
-        # pprint(val_info)
+        pprint(val_info)
     writer.close()
 
 

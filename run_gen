@@ -1,4 +1,0 @@
-#!/bin/bash
-# CUDA_VISIBLE_DEVICES=1 python gen.py ./configs/gen/airplane_gen_v2.yaml --pretrained "./pretrained/gen/airplane_gen_v2_2021-Sep-08-16-35-19/checkpoints/epoch_4000_iters_0.pt"
-# CUDA_VISIBLE_DEVICES=1 python gen.py ./configs/gen/car_gen_v2.yaml --pretrained "./pretrained/gen/car_gen_v2_2021-Sep-11-16-35-39/checkpoints/epoch_4000_iters_0.pt"
-

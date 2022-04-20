@@ -1,7 +1,6 @@
+import os
 import importlib
 import math
-import os
-import pdb
 import random
 
 import numpy as np
@@ -9,14 +8,12 @@ import torch
 import tqdm
 from evaluation.evaluation_metrics import (compute_all_metrics,
                                            jsd_between_point_cloud_sets)
-from Frechet.FPD import calculate_fpd
-
 from trainers.ae_sparenet_trainer_3D import Trainer as BaseTrainer
 from trainers.utils.gan_losses import dis_loss, gen_loss, gradient_penalty, gradient_penalty_orig
-from trainers.utils.utils import (count_parameters, get_opt, pc_normalize,
-                                  normalize_point_clouds)
-from trainers.utils.vis_utils import (visualize_point_clouds_3d,
-                                      visualize_point_clouds_img)
+from trainers.utils.utils import (count_parameters, get_opt, pc_normalize, normalize_point_clouds)
+from trainers.utils.vis_utils import (visualize_point_clouds_3d, visualize_point_clouds_img)
+from trainers.utils.gradient_penalty import GradientPenalty
+
 
 
 class Trainer(BaseTrainer):
@@ -36,6 +33,9 @@ class Trainer(BaseTrainer):
         self.dis.cuda()
         print(f"Discriminator : {count_parameters(self.dis)}")
         print(self.dis)
+        
+        self.device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
+        self.GP = GradientPenalty(10., device=self.device)
 
         # Optimizers
         if not (hasattr(self.cfg.trainer, "opt_gen") and
@@ -84,7 +84,7 @@ class Trainer(BaseTrainer):
         self.opt_gen.zero_grad()
         self.opt_dis.zero_grad()
 
-        tr_pts = data['tr_points'].cuda()  # (B, #points, 3)smn_ae_trainer.py
+        tr_pts = data['pointcloud'].cuda()  # (B, #points, 3)smn_ae_trainer.py
         batch_size = tr_pts.size(0)
         with torch.no_grad():
             x_real, _ = self.encoder(tr_pts)
@@ -109,11 +109,9 @@ class Trainer(BaseTrainer):
             # loss_res['loss'] = loss.detach().cpu().item()
         else:
             # Get gradient penalty
-            gp_weight = getattr(self.cfg.trainer, 'gp_weight', 10.)
-            gp_type = getattr(self.cfg.trainer, 'gp_type', "zero_center")
-            gp, gp_res = gradient_penalty(x_real, x_fake, d_real, d_fake, weight=gp_weight, gp_type=gp_type)
-            # gp, gp_res = gradient_penalty_orig(x_real, x_fake, d_real, d_fake, weight=gp_weight, gp_type=gp_type)
-            loss_res.update({("train/gan_pass/gp_loss/%s" % k): v for k, v in gp_res.items() })
+            gp, grad_norm = self.GP(self.dis, x_real, x_fake)
+            gp_res = {"loss": gp, "norm": grad_norm}
+            loss_res.update({("train/gp/%s" % k): v for k, v in gp_res.items()})
             dis_loss_weight = getattr(self.cfg.trainer, "dis_loss_weight", 1.)
             loss_dis, dis_loss_res = dis_loss(d_real, d_fake, weight=dis_loss_weight, loss_type=loss_type)
             loss_dis = loss_dis + gp
@@ -233,37 +231,36 @@ class Trainer(BaseTrainer):
             with open(output_file, "wb") as f:
                 np.save(f, imgs.cpu().numpy())
 
+
     def validate(self, test_loader, idx, evaluation=False, smp=None, ref=None, *args, **kwargs):
         all_res = {}
         max_gen_vali_shape = int(getattr(self.cfg.trainer, "max_gen_validate_shapes", 100))
-
-        # calculate fpd score
-        # fpd = self.validate_fpd(test_loader)
-        # all_res = {"FPD": fpd}
 
         if smp is None and ref is None:
             all_ref, all_smp = [], []
             # reference point clouds
             for data in tqdm.tqdm(test_loader, 'Dataset'):
-                ref_pts = data['tr_points']
+                ref_pts = data['pointcloud']
                 all_ref.append(ref_pts)
             ref = torch.cat(all_ref, dim=0).cuda()
+            # import pdb; pdb.set_trace()
 
             ref_num = ref.size(0)
-            for i in tqdm.tqdm(range(0, math.ceil(ref_num / max_gen_vali_shape)), 'Generate'):
+            for _ in tqdm.tqdm(range(0, math.ceil(ref_num / max_gen_vali_shape)), 'Generate'):
+                self.gen.eval()
+                self.decoder.eval()
                 with torch.no_grad():
-                    self.gen.eval()
-                    self.decoder.eval()
                     z = torch.randn((max_gen_vali_shape, 128)).cuda()
-                    # w = self.gen(z=z)
-                    w = z
+                    w = self.gen(z=z)
                     pcs = self.decoder(w)
                     all_smp.append(pcs)
             smp = torch.cat(all_smp, dim=0)[:ref_num]
-            smp = normalize_point_clouds(smp)
-            ref = normalize_point_clouds(ref)
-            np.save(os.path.join(self.cfg.save_dir, 'val', f'smp_{idx}.npy'), smp.detach().cpu().numpy())
-            np.save(os.path.join(self.cfg.save_dir, 'val', f'ref_{idx}.npy'), ref.cpu().numpy())
+            # smp = normalize_point_clouds(smp, "shape_unit")
+            # ref = normalize_point_clouds(ref, "shape_unit")
+            smp = normalize_point_clouds(smp, "shape_bbox")
+            ref = normalize_point_clouds(ref, "shape_bbox")
+            # np.save(os.path.join(self.cfg.save_dir, 'val', f'smp_{idx}.npy'), smp.detach().cpu().numpy())
+            # np.save(os.path.join(self.cfg.save_dir, 'val', f'ref_{idx}.npy'), ref.cpu().numpy())
             # sub_sampled = random.sample(range(ref.size(0)), 200)
             # smp = smp[sub_sampled, ...].contiguous()
             # ref = ref[sub_sampled, ...].contiguous()
@@ -274,9 +271,9 @@ class Trainer(BaseTrainer):
         else:
             smp = np.load(smp)
             ref = np.load(ref)
-            jsd = jsd_between_point_cloud_sets(smp, ref)
             smp = torch.from_numpy(smp).cuda()
             ref = torch.from_numpy(ref).cuda()
+            jsd = jsd_between_point_cloud_sets(smp, ref)
         all_res.update({"JSD": jsd})
         print(f"jsd: {jsd}")
 
@@ -284,7 +281,6 @@ class Trainer(BaseTrainer):
         if evaluation:
             # ref_ids = torch.randint(ref_num, (100,))
             # smp_ids = torch.randint(ref_num, (150,))
-            # smp_ids = torch.randint(ref_num, (100,))
             # smp = smp[smp_ids]
             # ref = ref[ref_ids]
             gen_res = compute_all_metrics(smp, ref, batch_size=int(getattr(self.cfg.trainer, "val_metrics_batch_size", 100)), accelerated_cd=True)
@@ -304,7 +300,7 @@ class Trainer(BaseTrainer):
                 all_smp.append(pcs)
 
             # for data in tqdm.tqdm(dataloader, desc="Data"):
-            #     inp_pts = data['tr_points'].cuda()
+            #     inp_pts = data['pointcloud'].cuda()
             #     all_ref.append(inp_pts)
 
             smp = torch.cat(all_smp, dim=0)
