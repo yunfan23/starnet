@@ -11,7 +11,7 @@ import torch.nn as nn
 import tqdm
 # from evaluation.chamfer_distance import ChamferDistanceMean
 from evaluation.evaluation_metrics import EMD_CD
-from evaluation.StructuralLosses.nn_distance import nn_distance  # noqa
+from evaluation.evaluation_metrics_fast import distChamferCUDA as nn_distance  # noqa
 
 from trainers.base_trainer import BaseTrainer
 from trainers.utils.utils import (count_parameters, get_opt, save_npy,

@@ -3,13 +3,11 @@ results
 Session.vim
 image*
 pretrained*
-evaluation
 archive
 __pycache__/
 *__pycache__
 .idea/
 *.pyc
-data
 
 scratch.py
 
